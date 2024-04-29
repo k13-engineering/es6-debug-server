@@ -16,7 +16,7 @@
         "@types/debug": "^4.1.12",
         "@types/estraverse": "^5.1.7",
         "@types/estree": "^1.0.5",
-        "deno-node": "^0.0.3"
+        "deno-node": "^0.0.4"
     },
     "scripts": {
         "build": "rm -rf dist/ && deno-node-build --root . --out dist/ --entry lib/index.ts"
