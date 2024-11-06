@@ -16,8 +16,9 @@ interface ICodeAnalyzeResult {
 };
 
 type TCodeAnalyzeReturn = TMaybeError<{ result: ICodeAnalyzeResult }>;
+type TCodeAnalyzeFunc = (args: { code: string }) => TCodeAnalyzeReturn;
 
-const defaultCodeAnalyzer = ({ code }: { code: string }): TCodeAnalyzeReturn => {
+const defaultCodeAnalyzer: TCodeAnalyzeFunc = ({ code }) => {
     try {
         const scriptAsAst = parseAst(code, {
             range: true
@@ -63,5 +64,6 @@ export {
 export type {
     IImportStatement,
     ICodeAnalyzeResult,
-    TCodeAnalyzeReturn
+    TCodeAnalyzeReturn,
+    TCodeAnalyzeFunc,
 };

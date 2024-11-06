@@ -4,7 +4,10 @@ import { createLogger } from "./log.ts";
 import pathe from "pathe";
 
 import type { TMaybeError } from "./util.ts";
-import type { TCodeAnalyzeReturn } from "./analyzer.ts";
+import type {
+    TCodeAnalyzeReturn,
+    TCodeAnalyzeFunc
+} from "./analyzer.ts";
 
 enum ETryReadErrorCode {
     FILE_NOT_FOUND = "FILE_NOT_FOUND",
@@ -17,6 +20,7 @@ interface ITryReadError {
 };
 
 type TTryReadResult = TMaybeError<{ content: string }, ITryReadError>;
+type TTryReadFunc = (args: { filePath: string }) => globalThis.Promise<TTryReadResult>;
 
 enum EHandleRequestResultType {
     REDIRECT = "REDIRECT",
@@ -30,8 +34,9 @@ enum EHandleRequestError {
 };
 
 type TResolveImportPathResult = TMaybeError<{ filePath: string }>;
+type TResolveImportPathFunc = (args: { importer: string, specifier: string }) => globalThis.Promise<TResolveImportPathResult>;
 
-const defaultImportResolver = ({ importer, specifier }: { importer: string, specifier: string }): Promise<TResolveImportPathResult> => {
+const defaultImportResolver: TResolveImportPathFunc = ({ importer, specifier }) => {
     if (specifier.startsWith("./") || specifier.startsWith("../")) {
         return Promise.resolve({
             error: undefined,
@@ -75,9 +80,9 @@ const create = ({
 }: {
     virtualRootFolder?: string,
     scriptRootFolder: string,
-    tryReadScriptAsString: (args: { filePath: string }) => Promise<TTryReadResult>;
-    analyzeCode?: (args: { code: string }) => TCodeAnalyzeReturn;
-    resolveImportPath?: (args: { importer: string, specifier: string }) => Promise<TResolveImportPathResult>;
+    tryReadScriptAsString: TTryReadFunc,
+    analyzeCode?: TCodeAnalyzeFunc,
+    resolveImportPath?: TResolveImportPathFunc
 }) => {
 
     const importResolveLogger = createLogger({ name: "server.resolve" });
@@ -341,4 +346,13 @@ export {
     EHandleRequestError,
     EHandleRequestResultType,
     ETryReadErrorCode
+};
+
+export type {
+    TResolveImportPathFunc,
+    TResolveImportPathResult,
+    TTryReadFunc,
+    TTryReadResult,
+    TCodeAnalyzeReturn,
+    TCodeAnalyzeFunc,
 };
