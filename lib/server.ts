@@ -276,7 +276,6 @@ const create = ({
                 }
 
                 if (resolveError !== undefined) {
-                    console.error("failed to resolve imports", readError);
                     requestLogger(`request for "${uri}" (req ${requestId}) failed as imports could not be resolved`, resolveError);
                     handleInternalError({ error: resolveError });
                     return;
