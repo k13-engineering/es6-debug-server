@@ -22,5 +22,15 @@
         "build": "rm -rf dist/ && deno-node-build --root . --out dist/ --entry lib/index.ts",
         "lint": "true",
         "test": "true"
-    }
+    },
+    "author": "Simon Kadisch",
+    "license": "LGPL-2.1",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/k13-engineering/es6-debug-server.git"
+    },
+    "bugs": {
+        "url": "https://github.com/k13-engineering/es6-debug-server/issues"
+    },
+    "homepage": "https://github.com/k13-engineering/es6-debug-server#readme"
 }
