@@ -19,6 +19,8 @@
         "deno-node": "^0.0.4"
     },
     "scripts": {
-        "build": "rm -rf dist/ && deno-node-build --root . --out dist/ --entry lib/index.ts"
+        "build": "rm -rf dist/ && deno-node-build --root . --out dist/ --entry lib/index.ts",
+        "lint": "true",
+        "test": "true"
     }
 }
