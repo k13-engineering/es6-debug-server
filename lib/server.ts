@@ -14,12 +14,11 @@ enum ETryReadErrorCode {
     IO_ERROR = "IO_ERROR"
 };
 
-interface ITryReadError {
-    code: ETryReadErrorCode;
-    message: string;
+type TTryReadError = Error & {
+    readErrorCode?: ETryReadErrorCode;
 };
 
-type TTryReadResult = TMaybeError<{ content: string }, ITryReadError>;
+type TTryReadResult = TMaybeError<{ content: string }, TTryReadError>;
 type TTryReadFunc = (args: { filePath: string }) => globalThis.Promise<TTryReadResult>;
 
 enum EHandleRequestResultType {
@@ -69,6 +68,12 @@ const assertNiceAbsolutePath = ({ name, path }: { name: string, path: string }) 
     if (path.endsWith("/")) {
         throw Error(`${name} must not end with /`);
     }
+};
+
+const createReadError = ({ code, message, cause }: { code: ETryReadErrorCode, message: string, cause?: Error }): TTryReadError => {
+    const error: TTryReadError = Error(message, { cause });
+    error.readErrorCode = code;
+    return error;
 };
 
 const create = ({
@@ -237,12 +242,12 @@ const create = ({
                     loadLogger(`failed to load script from "${filePath}"`, readError);
                     requestLogger(`request for "${uri}" (req ${requestId}) failed as script could not be read`, readError);
 
-                    if (readError.code === ETryReadErrorCode.FILE_NOT_FOUND) {
+                    if (readError.readErrorCode === ETryReadErrorCode.FILE_NOT_FOUND) {
                         handleFileNotFound();
                         return;
                     }
 
-                    handleInternalError({ error: Error(`failed to read file`) });
+                    handleInternalError({ error: Error(`failed to read file "${filePath}" resolved from "${uri}"`, { cause: readError }) });
                     return;
                 }
 
@@ -339,6 +344,7 @@ const create = ({
 };
 
 export {
+    createReadError,
     create,
     defaultImportResolver,
 
@@ -351,6 +357,7 @@ export type {
     TResolveImportPathFunc,
     TResolveImportPathResult,
     TTryReadFunc,
+    TTryReadError,
     TTryReadResult,
     TCodeAnalyzeReturn,
     TCodeAnalyzeFunc,
