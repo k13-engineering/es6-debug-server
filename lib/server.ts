@@ -112,15 +112,22 @@ const create = ({
 
         const results = await Promise.all(uniqueSpecifiers.map(async (specifier) => {
 
-            const result = await resolveImportPath({ importer, specifier });
+            const { error: resolveError, filePath } = await resolveImportPath({ importer, specifier });
 
-            if (result.error !== undefined) {
-                importResolveLogger(`failed to resolve import "${specifier}" from "${importer}"`, result.error);
+            if (resolveError !== undefined) {
+                importResolveLogger(`failed to resolve import "${specifier}" from "${importer}"`, resolveError);
+
+                return {
+                    error: Error(`failed to resolve import "${specifier}" from "${importer}"`, { cause: resolveError })
+                };
             } else {
-                importResolveLogger(`resolved import "${specifier}" from "${importer}" to "${result.filePath}"`);
+                importResolveLogger(`resolved import "${specifier}" from "${importer}" to "${filePath}"`);
             }
 
-            return result;
+            return {
+                error: undefined,
+                filePath
+            };
         }));
 
         const anyErrorResult = results.find((result) => {
