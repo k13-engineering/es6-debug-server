@@ -56,7 +56,7 @@ const assertNiceAbsolutePath = ({ name, path }: { name: string, path: string }) 
 };
 
 // eslint-disable-next-line max-statements
-const create = ({
+const createEs6DebugServer = ({
   virtualRootFolder = "$root",
   scriptRootFolder,
   tryReadScriptAsString,
@@ -341,7 +341,7 @@ const create = ({
 };
 
 export {
-  create,
+  createEs6DebugServer,
   defaultImportResolver,
 };
 

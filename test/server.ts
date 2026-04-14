@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "mocha";
-import { create as createServer } from "../lib/server.ts";
+import { createEs6DebugServer } from "../lib/server.ts";
 import { createReadError } from "../lib/errors.ts";
 
 describe("createServer", () => {
@@ -8,7 +8,7 @@ describe("createServer", () => {
     const scriptRootFolder = "/my/script/root";
     const virtualRootFolder = "$root";
 
-    const server = createServer({
+    const server = createEs6DebugServer({
       scriptRootFolder,
       virtualRootFolder,
       tryReadScriptAsString: async () => {
@@ -43,7 +43,7 @@ describe("createServer", () => {
 
     const scriptContent = `console.log("hello world");`;
 
-    const server = createServer({
+    const server = createEs6DebugServer({
       scriptRootFolder,
       virtualRootFolder,
       tryReadScriptAsString: async ({ filePath }) => {
@@ -88,7 +88,7 @@ describe("createServer", () => {
     const scriptRootFolder = "/my/script/root";
     const virtualRootFolder = "$root";
 
-    const server = createServer({
+    const server = createEs6DebugServer({
       scriptRootFolder,
       virtualRootFolder,
       tryReadScriptAsString: async ({ filePath }) => {
@@ -126,7 +126,7 @@ describe("createServer", () => {
 
   it("throws on a non-absolute script root folder", () => {
     assert.throws(() => {
-      createServer({
+      createEs6DebugServer({
         scriptRootFolder: "my/script/root",
         virtualRootFolder: "$root",
         tryReadScriptAsString: async () => {
@@ -140,7 +140,7 @@ describe("createServer", () => {
 
   it("throws on a trailing slash in the script root folder", () => {
     assert.throws(() => {
-      createServer({
+      createEs6DebugServer({
         scriptRootFolder: "/my/script/root/",
         virtualRootFolder: "$root",
         tryReadScriptAsString: async () => {
@@ -154,7 +154,7 @@ describe("createServer", () => {
 
   it("throws when the script root folder contains '.'", () => {
     assert.throws(() => {
-      createServer({
+      createEs6DebugServer({
         scriptRootFolder: "/my/./script/root",
         virtualRootFolder: "$root",
         tryReadScriptAsString: async () => {
@@ -168,7 +168,7 @@ describe("createServer", () => {
 
   it("throws when the script root folder contains '..'", () => {
     assert.throws(() => {
-      createServer({
+      createEs6DebugServer({
         scriptRootFolder: "/my/../script/root",
         virtualRootFolder: "$root",
         tryReadScriptAsString: async () => {
@@ -182,7 +182,7 @@ describe("createServer", () => {
 
   it("throws when the script root folder contains double slashes", () => {
     assert.throws(() => {
-      createServer({
+      createEs6DebugServer({
         scriptRootFolder: "/my//script/root",
         virtualRootFolder: "$root",
         tryReadScriptAsString: async () => {
