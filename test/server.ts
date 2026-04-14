@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "mocha";
-import { createEs6DebugServer } from "../lib/server.ts";
-import { createReadError } from "../lib/errors.ts";
+import { createEs6DebugServer, createReadError } from "../lib/index.ts";
 
 describe("createServer", () => {
   it("redirects when scripts are accessed outside the virtual root", async () => {

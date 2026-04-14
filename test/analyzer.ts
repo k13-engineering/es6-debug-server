@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "mocha";
-import { defaultCodeAnalyzer } from "../lib/analyzer.ts";
+import { defaultCodeAnalyzer } from "../lib/index.ts";
 
 describe("defaultCodeAnalyzer", () => {
   it("includes imports from re-export statements", () => {
