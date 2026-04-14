@@ -1,11 +1,6 @@
 {
-    "name": "es6-debug-server",
-    "version": "0.0.9",
     "type": "module",
-    "main": "dist/lib/index.js",
-    "files": [
-        "dist"
-    ],
+    "main": "lib/index.ts",
     "dependencies": {
         "@typescript-eslint/typescript-estree": "^8.14.0",
         "debug": "^4.3.4",
@@ -13,27 +8,24 @@
         "pathe": "^1.1.2"
     },
     "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@k13engineering/releasetool": "^0.0.5",
         "@types/debug": "^4.1.12",
         "@types/estraverse": "^5.1.7",
         "@types/estree": "^1.0.5",
         "@types/mocha": "^10.0.10",
-        "@types/node": "^22.19.17",
-        "deno-node": "^0.0.4",
-        "mocha": "^11.7.5"
+        "@types/node": "^25.6.0",
+        "c8": "^11.0.0",
+        "deno-node": "^0.0.12",
+        "mocha": "^11.7.5",
+        "npm-check-updates": "^20.0.2",
+        "typescript-eslint": "^8.58.2"
     },
     "scripts": {
         "build": "rm -rf dist/ && deno-node-build --root . --out dist/ --entry lib/index.ts",
-        "lint": "true",
-        "test": "mocha test/**/*.ts"
-    },
-    "author": "Simon Kadisch",
-    "license": "LGPL-2.1",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/k13-engineering/es6-debug-server.git"
-    },
-    "bugs": {
-        "url": "https://github.com/k13-engineering/es6-debug-server/issues"
-    },
-    "homepage": "https://github.com/k13-engineering/es6-debug-server#readme"
+        "type-check": "tsc --noEmit",
+        "lint": "eslint .",
+        "test": "c8 --reporter lcov --reporter html --reporter text --all --src lib/ --exclude lib/snippets/ --exclude test/ mocha test/**/*.ts",
+        "update-deps": "npm-check-updates -u"
+    }
 }

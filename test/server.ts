@@ -4,193 +4,193 @@ import { create as createServer } from "../lib/server.ts";
 import { createReadError } from "../lib/errors.ts";
 
 describe("createServer", () => {
-    it("redirects when scripts are accessed outside the virtual root", async () => {
-        const scriptRootFolder = "/my/script/root";
-        const virtualRootFolder = "$root";
+  it("redirects when scripts are accessed outside the virtual root", async () => {
+    const scriptRootFolder = "/my/script/root";
+    const virtualRootFolder = "$root";
 
-        const server = createServer({
-            scriptRootFolder,
-            virtualRootFolder,
-            tryReadScriptAsString: async () => {
-                throw Error("should not be called");
-            }
-        });
-
-        await server.handleRequest({
-            uri: "/ui/index.js",
-
-            handleContent: () => {
-                assert.fail("should not be called");
-            },
-
-            handleFileNotFound: () => {
-                assert.fail("should not be called");
-            },
-
-            handleInternalError: () => {
-                assert.fail("should not be called");
-            },
-
-            handleRedirect: ({ uri }) => {
-                assert.strictEqual(uri, `/${virtualRootFolder}${scriptRootFolder}/ui/index.js`);
-            }
-        });
+    const server = createServer({
+      scriptRootFolder,
+      virtualRootFolder,
+      tryReadScriptAsString: async () => {
+        throw Error("should not be called");
+      }
     });
 
-    it("serves scripts when accessed inside the virtual root", async () => {
-        const scriptRootFolder = "/my/script/root";
-        const virtualRootFolder = "$root";
+    await server.handleRequest({
+      uri: "/ui/index.js",
 
-        const scriptContent = `console.log("hello world");`;
+      handleContent: () => {
+        assert.fail("should not be called");
+      },
 
-        const server = createServer({
-            scriptRootFolder,
-            virtualRootFolder,
-            tryReadScriptAsString: async ({ filePath }) => {
-                assert.strictEqual(filePath, `${scriptRootFolder}/ui/index.js`);
-                return {
-                    error: undefined,
-                    content: scriptContent
-                };
-            }
-        });
+      handleFileNotFound: () => {
+        assert.fail("should not be called");
+      },
 
-        await new Promise<void>((resolve, reject) => {
-            void server.handleRequest({
-                uri: `/${virtualRootFolder}${scriptRootFolder}/ui/index.js`,
+      handleInternalError: () => {
+        assert.fail("should not be called");
+      },
 
-                handleContent: ({ contentType, content }) => {
-                    try {
-                        assert.strictEqual(contentType, "text/javascript");
-                        assert.strictEqual(content, scriptContent);
-                        resolve();
-                    } catch (error) {
-                        reject(error);
-                    }
-                },
+      handleRedirect: ({ uri }) => {
+        assert.strictEqual(uri, `/${virtualRootFolder}${scriptRootFolder}/ui/index.js`);
+      }
+    });
+  });
 
-                handleFileNotFound: () => {
-                    reject(Error("should not be called"));
-                },
+  it("serves scripts when accessed inside the virtual root", async () => {
+    const scriptRootFolder = "/my/script/root";
+    const virtualRootFolder = "$root";
 
-                handleInternalError: () => {
-                    reject(Error("should not be called"));
-                },
+    const scriptContent = `console.log("hello world");`;
 
-                handleRedirect: () => {
-                    reject(Error("should not be called"));
-                }
-            }).catch(reject);
-        });
+    const server = createServer({
+      scriptRootFolder,
+      virtualRootFolder,
+      tryReadScriptAsString: async ({ filePath }) => {
+        assert.strictEqual(filePath, `${scriptRootFolder}/ui/index.js`);
+        return {
+          error: undefined,
+          content: scriptContent
+        };
+      }
     });
 
-    it("fails when the script file cannot be found", async () => {
-        const scriptRootFolder = "/my/script/root";
-        const virtualRootFolder = "$root";
+    await new Promise<void>((resolve, reject) => {
+      void server.handleRequest({
+        uri: `/${virtualRootFolder}${scriptRootFolder}/ui/index.js`,
 
-        const server = createServer({
-            scriptRootFolder,
-            virtualRootFolder,
-            tryReadScriptAsString: async ({ filePath }) => {
-                return {
-                    error: createReadError({
-                        code: "FILE_NOT_FOUND",
-                        message: `file "${filePath}" not found`
-                    })
-                };
-            }
-        });
+        handleContent: ({ contentType, content }) => {
+          try {
+            assert.strictEqual(contentType, "text/javascript");
+            assert.strictEqual(content, scriptContent);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        },
 
-        await new Promise<void>((resolve, reject) => {
-            void server.handleRequest({
-                uri: `/${virtualRootFolder}${scriptRootFolder}/ui/index.js`,
+        handleFileNotFound: () => {
+          reject(Error("should not be called"));
+        },
 
-                handleContent: () => {
-                    reject(Error("should not be called"));
-                },
+        handleInternalError: () => {
+          reject(Error("should not be called"));
+        },
 
-                handleFileNotFound: () => {
-                    resolve();
-                },
+        handleRedirect: () => {
+          reject(Error("should not be called"));
+        }
+      }).catch(reject);
+    });
+  });
 
-                handleInternalError: () => {
-                    reject(Error("should not be called"));
-                },
+  it("fails when the script file cannot be found", async () => {
+    const scriptRootFolder = "/my/script/root";
+    const virtualRootFolder = "$root";
 
-                handleRedirect: () => {
-                    reject(Error("should not be called"));
-                }
-            }).catch(reject);
-        });
+    const server = createServer({
+      scriptRootFolder,
+      virtualRootFolder,
+      tryReadScriptAsString: async ({ filePath }) => {
+        return {
+          error: createReadError({
+            code: "FILE_NOT_FOUND",
+            message: `file "${filePath}" not found`
+          })
+        };
+      }
     });
 
-    it("throws on a non-absolute script root folder", () => {
-        assert.throws(() => {
-            createServer({
-                scriptRootFolder: "my/script/root",
-                virtualRootFolder: "$root",
-                tryReadScriptAsString: async () => {
-                    throw Error("should not be called");
-                }
-            });
-        }, (error: unknown) => {
-            return error instanceof Error && error.message === "scriptRootFolder must start with /";
-        });
-    });
+    await new Promise<void>((resolve, reject) => {
+      void server.handleRequest({
+        uri: `/${virtualRootFolder}${scriptRootFolder}/ui/index.js`,
 
-    it("throws on a trailing slash in the script root folder", () => {
-        assert.throws(() => {
-            createServer({
-                scriptRootFolder: "/my/script/root/",
-                virtualRootFolder: "$root",
-                tryReadScriptAsString: async () => {
-                    throw Error("should not be called");
-                }
-            });
-        }, (error: unknown) => {
-            return error instanceof Error && error.message === "scriptRootFolder must not end with /";
-        });
-    });
+        handleContent: () => {
+          reject(Error("should not be called"));
+        },
 
-    it("throws when the script root folder contains '.'", () => {
-        assert.throws(() => {
-            createServer({
-                scriptRootFolder: "/my/./script/root",
-                virtualRootFolder: "$root",
-                tryReadScriptAsString: async () => {
-                    throw Error("should not be called");
-                }
-            });
-        }, (error: unknown) => {
-            return error instanceof Error && error.message === "scriptRootFolder must not contain .";
-        });
-    });
+        handleFileNotFound: () => {
+          resolve();
+        },
 
-    it("throws when the script root folder contains '..'", () => {
-        assert.throws(() => {
-            createServer({
-                scriptRootFolder: "/my/../script/root",
-                virtualRootFolder: "$root",
-                tryReadScriptAsString: async () => {
-                    throw Error("should not be called");
-                }
-            });
-        }, (error: unknown) => {
-            return error instanceof Error && error.message === "scriptRootFolder must not contain ..";
-        });
-    });
+        handleInternalError: () => {
+          reject(Error("should not be called"));
+        },
 
-    it("throws when the script root folder contains double slashes", () => {
-        assert.throws(() => {
-            createServer({
-                scriptRootFolder: "/my//script/root",
-                virtualRootFolder: "$root",
-                tryReadScriptAsString: async () => {
-                    throw Error("should not be called");
-                }
-            });
-        }, (error: unknown) => {
-            return error instanceof Error && error.message === "scriptRootFolder must not contain //";
-        });
+        handleRedirect: () => {
+          reject(Error("should not be called"));
+        }
+      }).catch(reject);
     });
+  });
+
+  it("throws on a non-absolute script root folder", () => {
+    assert.throws(() => {
+      createServer({
+        scriptRootFolder: "my/script/root",
+        virtualRootFolder: "$root",
+        tryReadScriptAsString: async () => {
+          throw Error("should not be called");
+        }
+      });
+    }, (error: unknown) => {
+      return error instanceof Error && error.message === "scriptRootFolder must start with /";
+    });
+  });
+
+  it("throws on a trailing slash in the script root folder", () => {
+    assert.throws(() => {
+      createServer({
+        scriptRootFolder: "/my/script/root/",
+        virtualRootFolder: "$root",
+        tryReadScriptAsString: async () => {
+          throw Error("should not be called");
+        }
+      });
+    }, (error: unknown) => {
+      return error instanceof Error && error.message === "scriptRootFolder must not end with /";
+    });
+  });
+
+  it("throws when the script root folder contains '.'", () => {
+    assert.throws(() => {
+      createServer({
+        scriptRootFolder: "/my/./script/root",
+        virtualRootFolder: "$root",
+        tryReadScriptAsString: async () => {
+          throw Error("should not be called");
+        }
+      });
+    }, (error: unknown) => {
+      return error instanceof Error && error.message === "scriptRootFolder must not contain .";
+    });
+  });
+
+  it("throws when the script root folder contains '..'", () => {
+    assert.throws(() => {
+      createServer({
+        scriptRootFolder: "/my/../script/root",
+        virtualRootFolder: "$root",
+        tryReadScriptAsString: async () => {
+          throw Error("should not be called");
+        }
+      });
+    }, (error: unknown) => {
+      return error instanceof Error && error.message === "scriptRootFolder must not contain ..";
+    });
+  });
+
+  it("throws when the script root folder contains double slashes", () => {
+    assert.throws(() => {
+      createServer({
+        scriptRootFolder: "/my//script/root",
+        virtualRootFolder: "$root",
+        tryReadScriptAsString: async () => {
+          throw Error("should not be called");
+        }
+      });
+    }, (error: unknown) => {
+      return error instanceof Error && error.message === "scriptRootFolder must not contain //";
+    });
+  });
 });

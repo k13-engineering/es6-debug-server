@@ -1,0 +1,21 @@
+{
+    "name": "es6-debug-server",
+    "description": "A debug server for ES6 JavaScript code, supports importing files across the server root",
+    "publishConfig": {
+        "access": "public"
+    },
+    "main": "dist/lib/index.js",
+    "files": [
+        "dist"
+    ],
+    "author": "Simon Kadisch",
+    "license": "LGPL-2.1",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/k13-engineering/es6-debug-server.git"
+    },
+    "bugs": {
+        "url": "https://github.com/k13-engineering/es6-debug-server/issues"
+    },
+    "homepage": "https://github.com/k13-engineering/es6-debug-server#readme"
+}

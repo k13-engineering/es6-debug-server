@@ -1,31 +1,31 @@
 interface IGenericErrorResponse<T> {
-    error: T
+  error: T
 };
 
 interface IGenericSuccessResponse {
-    error: undefined;
+  error: undefined;
 };
 
 type TMaybeError<T, U = globalThis.Error> = (T & IGenericSuccessResponse) | (IGenericErrorResponse<U> & {
-    [K in keyof T]?: undefined;
+  [K in keyof T]?: undefined;
 });
 
 const dedupeStringArray = ({ array }: { array: string[] }) => {
-    let result: string[] = [];
+  let result: string[] = [];
 
-    array.forEach((item) => {
-        if (!result.includes(item)) {
-            result = [...result, item];
-        }
-    });
+  array.forEach((item) => {
+    if (!result.includes(item)) {
+      result = [...result, item];
+    }
+  });
 
-    return result;
+  return result;
 };
 
 export {
-    dedupeStringArray
+  dedupeStringArray
 };
 
 export type {
-    TMaybeError
+  TMaybeError
 };
