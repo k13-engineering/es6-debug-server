@@ -8,29 +8,13 @@ import type {
     TCodeAnalyzeReturn,
     TCodeAnalyzeFunc
 } from "./analyzer.ts";
-
-enum ETryReadErrorCode {
-    FILE_NOT_FOUND = "FILE_NOT_FOUND",
-    IO_ERROR = "IO_ERROR"
-};
-
-type TTryReadError = Error & {
-    readErrorCode?: ETryReadErrorCode;
-};
+import type { TTryReadError, TTryReadErrorCode } from "./errors.ts";
 
 type TTryReadResult = TMaybeError<{ content: string }, TTryReadError>;
 type TTryReadFunc = (args: { filePath: string }) => globalThis.Promise<TTryReadResult>;
 
-enum EHandleRequestResultType {
-    REDIRECT = "REDIRECT",
-    FILE = "FILE",
-    ERROR = "ERROR"
-};
-
-enum EHandleRequestError {
-    SYNTAX_ERROR = "SYNTAX_ERROR",
-    MODULE_NOT_FOUND = "MODULE_NOT_FOUND",
-};
+type THandleRequestResultType = "REDIRECT" | "FILE" | "ERROR";
+type THandleRequestError = "SYNTAX_ERROR" | "MODULE_NOT_FOUND";
 
 type TResolveImportPathResult = TMaybeError<{ filePath: string }>;
 type TResolveImportPathFunc = (args: { importer: string, specifier: string }) => globalThis.Promise<TResolveImportPathResult>;
@@ -68,12 +52,6 @@ const assertNiceAbsolutePath = ({ name, path }: { name: string, path: string }) 
     if (path.endsWith("/")) {
         throw Error(`${name} must not end with /`);
     }
-};
-
-const createReadError = ({ code, message, cause }: { code: ETryReadErrorCode, message: string, cause?: Error }): TTryReadError => {
-    const error: TTryReadError = Error(message, { cause });
-    error.readErrorCode = code;
-    return error;
 };
 
 const create = ({
@@ -249,7 +227,7 @@ const create = ({
                     loadLogger(`failed to load script from "${filePath}"`, readError);
                     requestLogger(`request for "${uri}" (req ${requestId}) failed as script could not be read`, readError);
 
-                    if (readError.readErrorCode === ETryReadErrorCode.FILE_NOT_FOUND) {
+                    if (readError.readErrorCode === "FILE_NOT_FOUND") {
                         handleFileNotFound();
                         return;
                     }
@@ -351,13 +329,8 @@ const create = ({
 };
 
 export {
-    createReadError,
     create,
     defaultImportResolver,
-
-    EHandleRequestError,
-    EHandleRequestResultType,
-    ETryReadErrorCode
 };
 
 export type {
@@ -368,4 +341,7 @@ export type {
     TTryReadResult,
     TCodeAnalyzeReturn,
     TCodeAnalyzeFunc,
+    THandleRequestError,
+    THandleRequestResultType,
+    TTryReadErrorCode
 };
