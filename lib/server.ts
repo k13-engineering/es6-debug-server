@@ -258,12 +258,7 @@ const createEs6DebugServer = ({
           return;
         }
 
-        const imports = analyzeResult.result.imports;
-
-        const importsToRewrite = imports.filter((imp) => {
-          return !imp.value.startsWith("./") && !imp.value.startsWith("../");
-        });
-
+        const importsToRewrite = analyzeResult.result.imports;
         const importer = filePath;
 
         const { error: resolveError, resolved } = await resolveAllImports({
