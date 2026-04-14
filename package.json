@@ -16,12 +16,15 @@
         "@types/debug": "^4.1.12",
         "@types/estraverse": "^5.1.7",
         "@types/estree": "^1.0.5",
-        "deno-node": "^0.0.4"
+        "@types/mocha": "^10.0.10",
+        "@types/node": "^22.19.17",
+        "deno-node": "^0.0.4",
+        "mocha": "^11.7.5"
     },
     "scripts": {
         "build": "rm -rf dist/ && deno-node-build --root . --out dist/ --entry lib/index.ts",
         "lint": "true",
-        "test": "true"
+        "test": "mocha test/**/*.ts"
     },
     "author": "Simon Kadisch",
     "license": "LGPL-2.1",
