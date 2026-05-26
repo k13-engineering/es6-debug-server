@@ -20,7 +20,9 @@ describe("defaultCodeAnalyzer", () => {
     }
 
     assert.deepStrictEqual(
-      result.imports.map((statement) => statement.value),
+      result.imports.map((statement) => {
+        return statement.value;
+      }),
       ["alpha", "beta", "gamma"]
     );
 

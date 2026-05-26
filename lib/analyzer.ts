@@ -1,4 +1,5 @@
 import estraverse from "estraverse";
+// eslint-disable-next-line k13-engineering/no-import-alias
 import { parse as parseAst } from "@typescript-eslint/typescript-estree";
 
 import type { TMaybeError } from "./util.ts";

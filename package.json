@@ -9,6 +9,7 @@
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
+        "@k13engineering/eslint-rules": "^0.0.6",
         "@k13engineering/releasetool": "^0.0.5",
         "@types/debug": "^4.1.12",
         "@types/estraverse": "^5.1.7",
@@ -19,7 +20,7 @@
         "deno-node": "^0.0.12",
         "mocha": "^11.7.5",
         "npm-check-updates": "^20.0.2",
-        "typescript-eslint": "^8.58.2"
+        "typescript": "^6.0.3"
     },
     "scripts": {
         "build": "rm -rf dist/ && deno-node-build --root . --out dist/ --entry lib/index.ts",

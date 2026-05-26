@@ -157,6 +157,7 @@ const createEs6DebugServer = ({
 
   const rewriteCode = ({ code, replacements }: { code: string, replacements: ICodeReplacement[] }) => {
 
+    // eslint-disable-next-line fp/no-mutating-methods
     const replacementsLastToFirst = replacements.slice().sort((a, b) => {
       return b.range.from - a.range.from;
     });

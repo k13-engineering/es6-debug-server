@@ -6,7 +6,8 @@
     "noEmit": true,
     "esModuleInterop": true,
     "strict": true,
+    "verbatimModuleSyntax": true,
     "types": ["node"],
-    "verbatimModuleSyntax": true
+    "skipLibCheck": true
   }
 }

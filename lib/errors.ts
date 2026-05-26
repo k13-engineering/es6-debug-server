@@ -6,6 +6,7 @@ type TTryReadError = Error & {
 
 const createReadError = ({ code, message, cause }: { code: TTryReadErrorCode, message: string, cause?: Error }): TTryReadError => {
   const error: TTryReadError = Error(message, { cause });
+  // eslint-disable-next-line immutable/no-mutation
   error.readErrorCode = code;
   return error;
 };
