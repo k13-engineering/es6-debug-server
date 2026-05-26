@@ -1,5 +1,4 @@
 import { defaultCodeAnalyzer } from "./analyzer.ts";
-import { dedupeStringArray } from "./util.ts";
 import { createLogger } from "./log.ts";
 import pathe from "pathe";
 
@@ -9,6 +8,8 @@ import type {
   TCodeAnalyzeFunc
 } from "./analyzer.ts";
 import type { TTryReadError, TTryReadErrorCode } from "./errors.ts";
+import { createImportRewriter } from "./import-rewriter.ts";
+import { createImportResolver } from "./import-resolver.ts";
 
 type TTryReadResult = TMaybeError<{ content: string }, TTryReadError>;
 type TTryReadFunc = (args: { filePath: string }) => globalThis.Promise<TTryReadResult>;
@@ -55,7 +56,6 @@ const assertNiceAbsolutePath = ({ name, path }: { name: string, path: string }) 
   }
 };
 
-// eslint-disable-next-line max-statements
 const createEs6DebugServer = ({
   virtualRootFolder = "$root",
   scriptRootFolder,
@@ -70,7 +70,6 @@ const createEs6DebugServer = ({
   resolveImportPath?: TResolveImportPathFunc
 }) => {
 
-  const importResolveLogger = createLogger({ name: "server.resolve" });
   const loadLogger = createLogger({ name: "server.load" });
   const requestLogger = createLogger({ name: "server.request" });
 
@@ -83,100 +82,18 @@ const createEs6DebugServer = ({
     }
   });
 
-  interface IResolveAllImportsSuccessResult {
-    resolved: string[];
-  };
-
-  const resolveAllImports = async ({
-    importer,
-    specifiers
-  }: {
-    importer: string,
-    specifiers: string[]
-  }): Promise<TMaybeError<IResolveAllImportsSuccessResult>> => {
-    const uniqueSpecifiers = dedupeStringArray({ array: specifiers });
-
-    const results = await Promise.all(uniqueSpecifiers.map(async (specifier) => {
-
-      const { error: resolveError, filePath } = await resolveImportPath({ importer, specifier });
-
-      // eslint-disable-next-line no-negated-condition
-      if (resolveError !== undefined) {
-        importResolveLogger(`failed to resolve import "${specifier}" from "${importer}"`, resolveError);
-
-        return {
-          error: Error(`failed to resolve import "${specifier}" from "${importer}"`, { cause: resolveError })
-        };
-      } else {
-        importResolveLogger(`resolved import "${specifier}" from "${importer}" to "${filePath}"`);
-      }
-
-      return {
-        error: undefined,
-        filePath
-      };
-    }));
-
-    const anyErrorResult = results.find((result) => {
-      return result.error !== undefined;
-    });
-
-    if (anyErrorResult !== undefined) {
-      return {
-        error: anyErrorResult.error!
-      };
-    }
-
-    let resultsByKey: { [key: string]: string } = {};
-    results.forEach((result, index) => {
-      const specifier = uniqueSpecifiers[index];
-
-      resultsByKey = {
-        ...resultsByKey,
-        [specifier]: result.filePath!
-      };
-    });
-
-    const resolved = specifiers.map((specifier) => {
-      return resultsByKey[specifier];
-    });
-
-    return {
-      error: undefined,
-      resolved
-    };
-  };
-
-  interface ICodeReplacement {
-    replacement: string;
-    range: {
-      from: number;
-      to: number;
-    };
-  };
-
-  const rewriteCode = ({ code, replacements }: { code: string, replacements: ICodeReplacement[] }) => {
-
-    // eslint-disable-next-line fp/no-mutating-methods
-    const replacementsLastToFirst = replacements.slice().sort((a, b) => {
-      return b.range.from - a.range.from;
-    });
-
-    let result = code;
-
-    replacementsLastToFirst.forEach((replacement) => {
-      const { from, to } = replacement.range;
-      const before = result.substring(0, from);
-      const after = result.substring(to);
-      result = `${before}${replacement.replacement}${after}`;
-    });
-
-    return result;
-  };
-
   const rootPrefix = `/${virtualRootFolder}/`;
 
   let requestCounter = 0;
+
+  const importResolver = createImportResolver({
+    resolveImportPath
+  });
+
+  const importRewriter = createImportRewriter({
+    analyzeCode,
+    importResolver
+  });
 
   // eslint-disable-next-line max-statements
   const handleRequest = async ({
@@ -251,56 +168,21 @@ const createEs6DebugServer = ({
 
         loadLogger(`loaded script from "${filePath}", ${content.length} bytes`);
 
-        const analyzeResult = analyzeCode({ code: content });
-
-        if (analyzeResult.error !== undefined) {
-          requestLogger(`request for "${uri}" (req ${requestId}) failed as script could not be analyzed`, analyzeResult.error);
-          handleInternalError({ error: analyzeResult.error });
-          return;
-        }
-
-        const importsToRewrite = analyzeResult.result.imports;
-        const importer = filePath;
-
-        const { error: resolveError, resolved } = await resolveAllImports({
-          importer,
-          specifiers: importsToRewrite.map((imp) => {
-            return imp.value;
-          }),
-        });
-
-        if (canceled) {
-          return;
-        }
-
-        if (resolveError !== undefined) {
-          requestLogger(`request for "${uri}" (req ${requestId}) failed as imports could not be resolved`, resolveError);
-          handleInternalError({ error: resolveError });
-          return;
-        }
-
-        const replacements = importsToRewrite.map((imported, index) => {
-
-          const absoluteOrRelativePath = resolved[index];
-
-          let targetPath = absoluteOrRelativePath;
-
-          if (absoluteOrRelativePath.startsWith("/")) {
-            targetPath = pathe.relative(pathe.dirname(importer), absoluteOrRelativePath);
-          }
-
-          return {
-            replacement: `"${targetPath}"`,
-            range: imported.range
-          };
-        });
-
-        const rewrittenCode = rewriteCode({
+        const { error: rewriteError, rewrittenCode } = await importRewriter.rewrite({
           code: content,
-          replacements
+          importer: filePath
         });
 
-        requestLogger(`request for "${uri}" (req ${requestId}) successful, serving ${rewriteCode.length} bytes of code`);
+        if (rewriteError !== undefined) {
+
+          const error = Error(`failed to rewrite imports in file "${filePath}" resolved from "${uri}"`, { cause: rewriteError });
+
+          requestLogger(error.message, rewriteError);
+          handleInternalError({ error });
+          return;
+        }
+
+        requestLogger(`request for "${uri}" (req ${requestId}) successful, serving ${rewrittenCode.length} bytes of code`);
         handleContent({
           contentType: "text/javascript",
           content: rewrittenCode
