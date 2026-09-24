@@ -31,6 +31,18 @@ const defaultImportResolver: TResolveImportPathFunc = ({ importer, specifier }) 
   throw Error(`only relative imports are supported, provide a custom resolveImportPath function to handle non-relative imports`);
 };
 
+// Expresses the absolute uri `to` relative to the requested uri `from`, e.g. from "/ui/index.js" to
+// "/$root/my/script/root/ui/index.js" gives "../$root/my/script/root/ui/index.js". A client resolves
+// such a relative redirect against the URL it actually requested, so the redirect stays below any
+// path prefix the server itself cannot see, like a reverse proxy serving it under "/production/".
+const relativeUriOf = ({ from, to }: { from: string, to: string }) => {
+  // only the path counts, a query or fragment may contain slashes of its own
+  const [pathOfFrom] = from.split(/[?#]/u);
+  const depth = pathOfFrom.split("/").length - 2;
+  const up = depth === 0 ? "./" : "../".repeat(depth);
+  return `${up}${to.substring(1)}`;
+};
+
 // eslint-disable-next-line complexity
 const assertNiceAbsolutePath = ({ name, path }: { name: string, path: string }) => {
   const parts = path.split("/");
@@ -107,7 +119,10 @@ const createEs6DebugServer = ({
     uri: string,
 
     handleContent: (args: { contentType: string, content: string }) => void;
-    handleRedirect: (args: { uri: string }) => void;
+    // `uri` is the redirect target as an absolute path below the server root, `relativeUri` is the
+    // same target relative to the requested uri. Prefer `relativeUri` as the Location of a redirect:
+    // it keeps working when the server is reached below a path prefix it does not know about.
+    handleRedirect: (args: { uri: string, relativeUri: string }) => void;
     handleFileNotFound: () => void;
     handleInternalError: (args: { error: Error }) => void;
     // eslint-disable-next-line complexity
@@ -206,7 +221,7 @@ const createEs6DebugServer = ({
 
     const redirectUri = `/${virtualRootFolder}${scriptRootFolder}/${relativePath}`;
     requestLogger(`request for "${uri}" (req ${requestId}) will be redirected to "${redirectUri}"`);
-    handleRedirect({ uri: redirectUri });
+    handleRedirect({ uri: redirectUri, relativeUri: relativeUriOf({ from: uri, to: redirectUri }) });
 
     return {
       cancel: () => { }

@@ -2,6 +2,44 @@ import assert from "node:assert/strict";
 import { describe, it } from "mocha";
 import { createEs6DebugServer, createReadError } from "../lib/index.ts";
 
+type TRedirect = { uri: string, relativeUri: string };
+
+// the redirect a request outside the virtual root is answered with
+const redirectOf = async ({ uri }: { uri: string }): Promise<TRedirect> => {
+  const server = createEs6DebugServer({
+    scriptRootFolder: "/my/script/root",
+    virtualRootFolder: "$root",
+    tryReadScriptAsString: async () => {
+      throw Error("should not be called");
+    }
+  });
+
+  let redirects: TRedirect[] = [];
+
+  await server.handleRequest({
+    uri,
+
+    handleContent: () => {
+      assert.fail("should not be called");
+    },
+
+    handleFileNotFound: () => {
+      assert.fail("should not be called");
+    },
+
+    handleInternalError: () => {
+      assert.fail("should not be called");
+    },
+
+    handleRedirect: (redirect) => {
+      redirects = [...redirects, redirect];
+    }
+  });
+
+  assert.strictEqual(redirects.length, 1);
+  return redirects[0];
+};
+
 describe("createServer", () => {
   it("redirects when scripts are accessed outside the virtual root", async () => {
     const scriptRootFolder = "/my/script/root";
@@ -34,6 +72,45 @@ describe("createServer", () => {
         assert.strictEqual(uri, `/${virtualRootFolder}${scriptRootFolder}/ui/index.js`);
       }
     });
+  });
+
+  it("offers the redirect relative to the requested uri as well", async () => {
+    const cases = [
+      { uri: "/index.js", relativeUri: "./$root/my/script/root/index.js" },
+      { uri: "/ui/index.js", relativeUri: "../$root/my/script/root/ui/index.js" },
+      { uri: "/ui/pages/index.js", relativeUri: "../../$root/my/script/root/ui/pages/index.js" }
+    ];
+
+    const redirects = await Promise.all(cases.map(({ uri }) => {
+      return redirectOf({ uri });
+    }));
+
+    assert.deepStrictEqual(redirects, cases.map(({ uri, relativeUri }) => {
+      // the absolute one is unchanged, so existing callers keep working
+      return { uri: `/$root/my/script/root${uri}`, relativeUri };
+    }));
+  });
+
+  it("the relative redirect leads to the absolute one below any prefix only the client sees", async () => {
+    const prefixes = ["", "/production", "/a/b"];
+    const uris = ["/index.js", "/ui/index.js", "/ui/pages/index.js"];
+
+    await Promise.all(prefixes.flatMap((prefix) => {
+      return uris.map(async (uri) => {
+        const redirect = await redirectOf({ uri });
+
+        // what a browser does with a relative Location: resolve it against the URL it requested
+        const landed = new URL(redirect.relativeUri, `http://localhost:8080${prefix}${uri}`);
+
+        assert.strictEqual(landed.pathname, `${prefix}${redirect.uri}`);
+      });
+    }));
+  });
+
+  it("counts only the path of the requested uri towards the relative redirect", async () => {
+    const redirect = await redirectOf({ uri: "/ui/index.js?v=1&from=a/b/c" });
+
+    assert.strictEqual(redirect.relativeUri, "../$root/my/script/root/ui/index.js?v=1&from=a/b/c");
   });
 
   it("serves scripts when accessed inside the virtual root", async () => {
