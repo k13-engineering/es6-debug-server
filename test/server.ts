@@ -506,7 +506,7 @@ describe("createServer, canceling requests", () => {
     assert.deepStrictEqual(answers, []);
   });
 
-  it.skip("does not answer a request that is canceled while its imports are resolved", async () => {
+  it("does not answer a request that is canceled while its imports are resolved", async () => {
     const resolveStarted = createGate();
     const resolveGate = createGate();
 

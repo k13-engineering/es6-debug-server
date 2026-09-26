@@ -180,6 +180,11 @@ const createEs6DebugServer = ({
           importer: filePath
         });
 
+        // the request may have been canceled while its imports were resolved
+        if (canceled) {
+          return;
+        }
+
         if (rewriteError !== undefined) {
 
           const error = Error(`failed to rewrite imports in file "${filePath}" resolved from "${uri}"`, { cause: rewriteError });
