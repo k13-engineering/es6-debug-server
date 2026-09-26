@@ -2,9 +2,9 @@
     "type": "module",
     "main": "lib/index.ts",
     "dependencies": {
-        "@typescript-eslint/typescript-estree": "^8.14.0",
+        "@typescript-eslint/typescript-estree": "^8.70.1",
         "debug": "^4.3.4",
-        "pathe": "^1.1.2"
+        "pathe": "^2.0.3"
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
@@ -13,11 +13,11 @@
         "@types/debug": "^4.1.12",
         "@types/estree": "^1.0.5",
         "@types/mocha": "^10.0.10",
-        "@types/node": "^25.6.0",
-        "c8": "^11.0.0",
+        "@types/node": "^26.6.3",
+        "c8": "^12.0.0",
         "deno-node": "^0.0.12",
-        "mocha": "^11.7.5",
-        "npm-check-updates": "^20.0.2",
+        "mocha": "^12.0.2",
+        "npm-check-updates": "^23.1.0",
         "typescript": "^6.0.3"
     },
     "scripts": {

@@ -107,7 +107,6 @@ const createEs6DebugServer = ({
     importResolver
   });
 
-  // eslint-disable-next-line max-statements
   const handleRequest = async ({
     uri,
 
@@ -125,7 +124,7 @@ const createEs6DebugServer = ({
     handleRedirect: (args: { uri: string, relativeUri: string }) => void;
     handleFileNotFound: () => void;
     handleInternalError: (args: { error: Error }) => void;
-    // eslint-disable-next-line complexity
+    // eslint-disable-next-line complexity, max-statements
   }) => {
 
     const requestId = requestCounter;
