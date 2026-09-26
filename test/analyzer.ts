@@ -34,6 +34,31 @@ describe("defaultCodeAnalyzer", () => {
     );
   });
 
+  it("handles typescript-only syntax", () => {
+    const code = [
+      `import thing from "alpha";`,
+      `enum Kind { A, B }`,
+      `class Holder { constructor(private value: number) {} }`,
+      `const checked = { kind: Kind.A } satisfies { kind: Kind };`,
+      `export * from "beta";`,
+    ].join("\n");
+
+    const { error, result } = defaultCodeAnalyzer({ code });
+
+    assert.strictEqual(error, undefined);
+
+    if (error !== undefined) {
+      throw error;
+    }
+
+    assert.deepStrictEqual(
+      result.imports.map((statement) => {
+        return statement.value;
+      }),
+      ["alpha", "beta"]
+    );
+  });
+
   it("ignores exports without a source module", () => {
     const code = [
       `const localValue = 1;`,

@@ -1,6 +1,5 @@
-import estraverse from "estraverse";
 // eslint-disable-next-line k13-engineering/no-import-alias
-import { parse as parseAst } from "@typescript-eslint/typescript-estree";
+import { parse as parseAst, simpleTraverse } from "@typescript-eslint/typescript-estree";
 
 import type { TMaybeError } from "./util.ts";
 
@@ -51,15 +50,14 @@ const defaultCodeAnalyzer: TCodeAnalyzeFunc = ({ code }) => {
       ];
     };
 
-    // @ts-expect-error wrong types
-    estraverse.traverse(scriptAsAst, {
+    simpleTraverse(scriptAsAst, {
       enter: (node) => {
         if (
           node.type === "ImportDeclaration"
           || node.type === "ExportAllDeclaration"
           || node.type === "ExportNamedDeclaration"
         ) {
-          appendSourceAsImport(node.source as TImportLikeSource);
+          appendSourceAsImport(node.source);
         }
       }
     });

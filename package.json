@@ -4,7 +4,6 @@
     "dependencies": {
         "@typescript-eslint/typescript-estree": "^8.14.0",
         "debug": "^4.3.4",
-        "estraverse": "^5.3.0",
         "pathe": "^1.1.2"
     },
     "devDependencies": {
@@ -12,7 +11,6 @@
         "@k13engineering/eslint-rules": "^0.0.6",
         "@k13engineering/releasetool": "^0.0.5",
         "@types/debug": "^4.1.12",
-        "@types/estraverse": "^5.1.7",
         "@types/estree": "^1.0.5",
         "@types/mocha": "^10.0.10",
         "@types/node": "^25.6.0",
