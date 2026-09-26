@@ -130,7 +130,7 @@ describe("defaultImportResolver", () => {
     assert.deepStrictEqual(result, { error: undefined, filePath: "/app/shared/b.js" });
   });
 
-  it.skip("reports bare specifiers as an error instead of throwing", async () => {
+  it("reports bare specifiers as an error instead of throwing", async () => {
     const resolveBareSpecifier = () => {
       return defaultImportResolver({ importer: "/app/frontend/index.js", specifier: "lib" });
     };

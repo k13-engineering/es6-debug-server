@@ -40,7 +40,9 @@ const defaultImportResolver: TResolveImportPathFunc = ({ importer, specifier }) 
     });
   }
 
-  throw Error(`only relative imports are supported, provide a custom resolveImportPath function to handle non-relative imports`);
+  return Promise.resolve({
+    error: Error(`only relative imports are supported, provide a custom resolveImportPath function to handle "${specifier}"`)
+  });
 };
 
 // Expresses the absolute uri `to` relative to the requested uri `from`, e.g. from "/ui/index.js" to
