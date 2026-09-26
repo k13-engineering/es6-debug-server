@@ -372,6 +372,20 @@ describe("createServer, serving scripts", () => {
     );
   });
 
+  it("passes an import the resolver resolves to a url on as it is", async () => {
+    const { server } = createServerFor({
+      files: { "/app/frontend/index.js": `import { lib } from "lib";` },
+      resolveImportPath: async () => {
+        return { error: undefined, filePath: "https://cdn.example.com/lib.js" };
+      }
+    });
+
+    const outcome = await requestOutcome({ server, uri: "/$root/app/frontend/index.js" });
+
+    assertOutcomeKind({ outcome, kind: "content" });
+    assert.strictEqual((outcome as { content: string }).content, `import { lib } from "https://cdn.example.com/lib.js";`);
+  });
+
   it("uses the virtual root folder it is given", async () => {
     const fileSystem = createFakeFileSystem({ files: { "/app/frontend/index.js": `export const a = 1;` } });
 

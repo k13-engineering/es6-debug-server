@@ -6,9 +6,12 @@ import type { TImportResolver } from "./import-resolver.ts";
 type TRewriteResult = {
   error: Error;
   rewrittenCode: undefined;
+  importedFilePaths?: undefined;
 } | {
   error: undefined;
   rewrittenCode: string;
+  // the file paths of the imports that were resolved, where a browser will request them
+  importedFilePaths: string[];
 };
 
 // an import specifier is a url, so a file name with e.g. "#", "?" or "%" in it has to be percent-encoded
@@ -32,6 +35,20 @@ const targetPathOf = ({ importer, absoluteOrRelativePath }: { importer: string, 
   }
 
   return encodeUriPath({ path: `./${relativePath}` });
+};
+
+// the file path of an import, a result of the resolver that is neither a file path nor relative, e.g. a
+// url, is not on this server
+const importedFilePathOf = ({ importer, absoluteOrRelativePath }: { importer: string, absoluteOrRelativePath: string }) => {
+  if (absoluteOrRelativePath.startsWith("/")) {
+    return posix.normalize(absoluteOrRelativePath);
+  }
+
+  if (absoluteOrRelativePath.startsWith("./") || absoluteOrRelativePath.startsWith("../")) {
+    return posix.join(posix.dirname(importer), absoluteOrRelativePath);
+  }
+
+  return undefined;
 };
 
 const createImportRewriter = ({
@@ -109,9 +126,15 @@ const createImportRewriter = ({
       replacements
     });
 
+    const importedFilePaths = resolvedImports.flatMap(({ absoluteOrRelativePath }) => {
+      const importedFilePath = importedFilePathOf({ importer, absoluteOrRelativePath });
+      return importedFilePath === undefined ? [] : [importedFilePath];
+    });
+
     return {
       error: undefined,
-      rewrittenCode
+      rewrittenCode,
+      importedFilePaths
     };
   };
 

@@ -74,7 +74,7 @@ describe("security, files that are not meant to be served", () => {
   ];
 
   notMeantToBeServed.forEach(({ what, filePath }) => {
-    it.skip(`does not serve ${what} requested through the virtual root`, async () => {
+    it(`does not serve ${what} requested through the virtual root`, async () => {
       const { server } = createServerFor();
 
       const outcome = await requestOutcome({ server, uri: `/$root${filePath}` });
@@ -83,7 +83,7 @@ describe("security, files that are not meant to be served", () => {
     });
   });
 
-  it.skip("does not serve a dotenv file in the script root requested next to the scripts", async () => {
+  it("does not serve a dotenv file in the script root requested next to the scripts", async () => {
     const { server } = createServerFor();
 
     const { outcome } = await browserFetch({ server, url: urlOf({ path: "/.env" }), prefix: "" });
@@ -91,7 +91,7 @@ describe("security, files that are not meant to be served", () => {
     assertNotServed({ outcome });
   });
 
-  it.skip("does not serve a script of the server even after serving the frontend", async () => {
+  it("does not serve a script of the server even after serving the frontend", async () => {
     const { server } = createServerFor();
 
     const entry = await browserFetch({ server, url: urlOf({ path: "/index.js" }), prefix: "" });
@@ -116,6 +116,29 @@ describe("security, files that are not meant to be served", () => {
     });
   });
 
+  it("serves the files in the script root that isScriptFile takes for scripts", async () => {
+    const fileSystem = createFakeFileSystem({
+      files: {
+        "/app/frontend/custom.es": `export const custom = true;`,
+        "/app/frontend/index.js": `export const main = true;`
+      }
+    });
+
+    const server = createEs6DebugServer({
+      scriptRootFolder: "/app/frontend",
+      isScriptFile: ({ filePath }) => {
+        return filePath.endsWith(".es");
+      },
+      tryReadScriptAsString: fileSystem.tryReadScriptAsString
+    });
+
+    const custom = await requestOutcome({ server, uri: "/$root/app/frontend/custom.es" });
+    const plain = await requestOutcome({ server, uri: "/$root/app/frontend/index.js" });
+
+    assertOutcomeKind({ outcome: custom, kind: "content" });
+    assertOutcomeKind({ outcome: plain, kind: "file-not-found" });
+  });
+
   it("rejects a uri with a null byte, which could cut off an extension check behind it", async () => {
     const { server, readPaths } = createServerFor();
 
@@ -136,6 +159,8 @@ describe("security, path traversal", () => {
     "/$root/../etc/passwd",
     "/$root/..",
     "/index.js/../../server/config.js",
+    "/$root/app/frontend/..\\server\\config.js",
+    "/..\\server\\config.js",
   ];
 
   traversals.forEach((uri) => {

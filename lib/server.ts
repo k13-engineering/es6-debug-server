@@ -1,6 +1,7 @@
 import { defaultCodeAnalyzer } from "./analyzer.ts";
 import { createLogger } from "./log.ts";
 import pathe from "pathe";
+import { posix } from "node:path";
 
 import type { TMaybeError } from "./util.ts";
 import type {
@@ -69,7 +70,8 @@ const assertNiceUri = ({ uri }: { uri: string }) => {
     throw Error("uri must start with /");
   }
 
-  if (path.split("/").includes("..")) {
+  // a \ separates the segments of a path on windows
+  if (path.split(/[/\\]/u).includes("..")) {
     throw Error("uri must not contain ..");
   }
 
@@ -127,18 +129,33 @@ const assertNiceUriSegment = ({ name, segment }: { name: string, segment: string
   }
 };
 
+type TIsScriptFileFunc = (args: { filePath: string }) => boolean;
+
+const defaultScriptFileEndings = [".js", ".ts", ".cjs", ".mjs", ".cts", ".mts"];
+
+const defaultIsScriptFile: TIsScriptFileFunc = ({ filePath }) => {
+  return defaultScriptFileEndings.some((ending) => {
+    return filePath.endsWith(ending);
+  });
+};
+
 const createEs6DebugServer = ({
   virtualRootFolder = "$root",
   scriptRootFolder,
+  isScriptFile = defaultIsScriptFile,
   tryReadScriptAsString,
   analyzeCode = defaultCodeAnalyzer,
   resolveImportPath = defaultImportResolver,
 }: {
   virtualRootFolder?: string,
   scriptRootFolder: string,
+  // which files in the script root are served as scripts, by default those ending in .js, .ts, .cjs, .mjs,
+  // .cts or .mts
+  isScriptFile?: TIsScriptFileFunc,
   tryReadScriptAsString: TTryReadFunc,
   analyzeCode?: TCodeAnalyzeFunc,
   resolveImportPath?: TResolveImportPathFunc
+// eslint-disable-next-line complexity
 }) => {
 
   const loadLogger = createLogger({ name: "server.load" });
@@ -160,6 +177,21 @@ const createEs6DebugServer = ({
     importResolver
   });
 
+  // the files a served script imports, a browser requests them next, wherever they are
+  const importedFilePaths = new Set<string>();
+
+  // what a browser loads is served: the scripts in the script root and what a served script imports,
+  // anything else on the file system, like a .env file or the scripts of a server, is not
+  const isServable = ({ filePath }: { filePath: string }) => {
+    const normalizedFilePath = posix.normalize(filePath);
+
+    if (importedFilePaths.has(normalizedFilePath)) {
+      return true;
+    }
+
+    return normalizedFilePath.startsWith(`${scriptRootFolder}/`) && isScriptFile({ filePath: normalizedFilePath });
+  };
+
   const loadScript = async ({
     filePath,
     uri,
@@ -172,6 +204,12 @@ const createEs6DebugServer = ({
     isCanceled: () => boolean
     // eslint-disable-next-line max-statements, complexity
   }): Promise<TLoadScriptResult> => {
+
+    // answered like a missing file, so it does not even tell whether the file exists
+    if (!isServable({ filePath })) {
+      requestLogger(`request for "${uri}" (req ${requestId}) refused, "${filePath}" is neither a script in the script root nor imported`);
+      return { kind: "file-not-found" };
+    }
 
     loadLogger(`trying to load script from "${filePath}"`);
 
@@ -197,7 +235,7 @@ const createEs6DebugServer = ({
 
     loadLogger(`loaded script from "${filePath}", ${content.length} bytes`);
 
-    const { error: rewriteError, rewrittenCode } = await importRewriter.rewrite({
+    const { error: rewriteError, rewrittenCode, importedFilePaths: importedByScript } = await importRewriter.rewrite({
       code: content,
       importer: filePath
     });
@@ -209,6 +247,10 @@ const createEs6DebugServer = ({
       requestLogger(error.message, rewriteError);
       return { kind: "internal-error", error };
     }
+
+    importedByScript.forEach((importedFilePath) => {
+      importedFilePaths.add(importedFilePath);
+    });
 
     requestLogger(`request for "${uri}" (req ${requestId}) successful, serving ${rewrittenCode.length} bytes of code`);
     return { kind: "content", content: rewrittenCode };
@@ -329,6 +371,7 @@ export {
 };
 
 export type {
+  TIsScriptFileFunc,
   TResolveImportPathFunc,
   TResolveImportPathResult,
   TTryReadFunc,

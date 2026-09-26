@@ -99,6 +99,27 @@ describe("imports of served scripts, as a browser loads them", () => {
   });
 });
 
+describe("imports resolved relative to the importer, as a browser loads them", () => {
+  it("loads an import outside the script root", async () => {
+    const loaded = await loadWithImports({
+      files: {
+        "/app/frontend/index.js": `import { shared } from "shared";`,
+        "/app/shared/index.js": `export const shared = true;`
+      },
+      entry: "/index.js",
+      prefix: "",
+      resolveImportPath: async () => {
+        return { error: undefined, filePath: "../shared/index.js" };
+      }
+    });
+
+    assert.deepStrictEqual(loaded, [{
+      readPath: "/app/shared/index.js",
+      outcome: { kind: "content", contentType: "text/javascript", content: `export const shared = true;` }
+    }]);
+  });
+});
+
 // a file name with a ? is not among them: the server gets the decoded path of a request, where a ? can
 // not be told apart from the start of a query
 describe("imports of files with unusual names, as a browser loads them", () => {
