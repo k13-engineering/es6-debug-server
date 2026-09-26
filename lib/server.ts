@@ -14,6 +14,18 @@ import { createImportResolver } from "./import-resolver.ts";
 type TTryReadResult = TMaybeError<{ content: string }, TTryReadError>;
 type TTryReadFunc = (args: { filePath: string }) => globalThis.Promise<TTryReadResult>;
 
+type TLoadScriptResult = {
+  kind: "content",
+  content: string
+} | {
+  kind: "file-not-found"
+} | {
+  kind: "internal-error",
+  error: Error
+} | {
+  kind: "canceled"
+};
+
 type THandleRequestResultType = "REDIRECT" | "FILE" | "ERROR";
 type THandleRequestError = "SYNTAX_ERROR" | "MODULE_NOT_FOUND";
 
@@ -100,6 +112,72 @@ const createEs6DebugServer = ({
     importResolver
   });
 
+  const loadScript = async ({
+    filePath,
+    uri,
+    requestId,
+    isCanceled
+  }: {
+    filePath: string,
+    uri: string,
+    requestId: number,
+    isCanceled: () => boolean
+    // eslint-disable-next-line max-statements, complexity
+  }): Promise<TLoadScriptResult> => {
+
+    loadLogger(`trying to load script from "${filePath}"`);
+
+    const { error: readError, content } = await tryReadScriptAsString({ filePath });
+
+    if (isCanceled()) {
+      return { kind: "canceled" };
+    }
+
+    if (readError !== undefined) {
+      loadLogger(`failed to load script from "${filePath}"`, readError);
+      requestLogger(`request for "${uri}" (req ${requestId}) failed as script could not be read`, readError);
+
+      if (readError.readErrorCode === "FILE_NOT_FOUND") {
+        return { kind: "file-not-found" };
+      }
+
+      return {
+        kind: "internal-error",
+        error: Error(`failed to read file "${filePath}" resolved from "${uri}"`, { cause: readError })
+      };
+    }
+
+    loadLogger(`loaded script from "${filePath}", ${content.length} bytes`);
+
+    const { error: rewriteError, rewrittenCode } = await importRewriter.rewrite({
+      code: content,
+      importer: filePath
+    });
+
+    if (rewriteError !== undefined) {
+
+      const error = Error(`failed to rewrite imports in file "${filePath}" resolved from "${uri}"`, { cause: rewriteError });
+
+      requestLogger(error.message, rewriteError);
+      return { kind: "internal-error", error };
+    }
+
+    requestLogger(`request for "${uri}" (req ${requestId}) successful, serving ${rewrittenCode.length} bytes of code`);
+    return { kind: "content", content: rewrittenCode };
+  };
+
+  // an exception thrown by a provided function, e.g. tryReadScriptAsString or resolveImportPath, must not
+  // escape as an unhandled rejection, that would take down the whole process
+  const loadScriptSafely = async (args: Parameters<typeof loadScript>[0]): Promise<TLoadScriptResult> => {
+    try {
+      return await loadScript(args);
+    } catch (ex) {
+      const error = Error(`failed to load script "${args.filePath}" resolved from "${args.uri}"`, { cause: ex });
+      requestLogger(error.message, ex);
+      return { kind: "internal-error", error };
+    }
+  };
+
   const handleRequest = async ({
     uri,
 
@@ -151,53 +229,33 @@ const createEs6DebugServer = ({
       // relativePath does not have .. in it
       const filePath = `/${relativePathInRoot}`;
 
-      loadLogger(`trying to load script from "${filePath}"`);
+      const isCanceled = () => {
+        return canceled;
+      };
 
-      // eslint-disable-next-line max-statements, complexity
-      tryReadScriptAsString({ filePath }).then(async ({ error: readError, content }) => {
+      // the handlers are called outside of loadScriptSafely, so an exception thrown by one of them is
+      // not answered a second time as an internal error
+      // eslint-disable-next-line complexity
+      void loadScriptSafely({ filePath, uri, requestId, isCanceled }).then((result) => {
 
-        if (canceled) {
+        // the request may have been canceled while the script was loaded
+        if (canceled || result.kind === "canceled") {
           return;
         }
 
-        if (readError !== undefined) {
-          loadLogger(`failed to load script from "${filePath}"`, readError);
-          requestLogger(`request for "${uri}" (req ${requestId}) failed as script could not be read`, readError);
-
-          if (readError.readErrorCode === "FILE_NOT_FOUND") {
-            handleFileNotFound();
-            return;
-          }
-
-          handleInternalError({ error: Error(`failed to read file "${filePath}" resolved from "${uri}"`, { cause: readError }) });
+        if (result.kind === "file-not-found") {
+          handleFileNotFound();
           return;
         }
 
-        loadLogger(`loaded script from "${filePath}", ${content.length} bytes`);
-
-        const { error: rewriteError, rewrittenCode } = await importRewriter.rewrite({
-          code: content,
-          importer: filePath
-        });
-
-        // the request may have been canceled while its imports were resolved
-        if (canceled) {
+        if (result.kind === "internal-error") {
+          handleInternalError({ error: result.error });
           return;
         }
 
-        if (rewriteError !== undefined) {
-
-          const error = Error(`failed to rewrite imports in file "${filePath}" resolved from "${uri}"`, { cause: rewriteError });
-
-          requestLogger(error.message, rewriteError);
-          handleInternalError({ error });
-          return;
-        }
-
-        requestLogger(`request for "${uri}" (req ${requestId}) successful, serving ${rewrittenCode.length} bytes of code`);
         handleContent({
           contentType: "text/javascript",
-          content: rewrittenCode
+          content: result.content
         });
       });
 

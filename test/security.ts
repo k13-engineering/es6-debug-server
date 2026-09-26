@@ -167,7 +167,7 @@ describe("security, path traversal", () => {
 });
 
 describe("security, a request never takes the server down", () => {
-  it.skip("answers with an internal error for a bare import the default resolver does not support", async () => {
+  it("answers with an internal error for a bare import the default resolver does not support", async () => {
     const fileSystem = createFakeFileSystem({ files: { "/app/frontend/index.js": `import "lib";` } });
 
     const server = createEs6DebugServer({
@@ -180,7 +180,7 @@ describe("security, a request never takes the server down", () => {
     assertOutcomeKind({ outcome, kind: "internal-error" });
   });
 
-  it.skip("answers with an internal error when reading the script throws", async () => {
+  it("answers with an internal error when reading the script throws", async () => {
     const { server } = createServerFor({
       tryReadScriptAsString: async () => {
         throw Error("disk on fire");
@@ -192,7 +192,7 @@ describe("security, a request never takes the server down", () => {
     assertOutcomeKind({ outcome, kind: "internal-error" });
   });
 
-  it.skip("answers with an internal error when analyzing the code throws", async () => {
+  it("answers with an internal error when analyzing the code throws", async () => {
     const { server } = createServerFor({
       analyzeCode: () => {
         throw Error("analyzer bug");
