@@ -197,7 +197,7 @@ const createEs6DebugServer = ({
     handleRedirect: (args: { uri: string, relativeUri: string }) => void;
     handleFileNotFound: () => void;
     handleInternalError: (args: { error: Error }) => void;
-    // eslint-disable-next-line max-statements
+    // eslint-disable-next-line max-statements, complexity
   }) => {
 
     const requestId = requestCounter;
@@ -213,6 +213,11 @@ const createEs6DebugServer = ({
 
     if (!uri.startsWith("/")) {
       throw Error("uri must start with /");
+    }
+
+    // a file path ends at a null byte for some file systems, which cuts off e.g. the extension of a path
+    if (uri.includes("\0")) {
+      throw Error("uri must not contain null bytes");
     }
 
     const uriParts = uri.split("/");

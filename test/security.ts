@@ -116,7 +116,7 @@ describe("security, files that are not meant to be served", () => {
     });
   });
 
-  it.skip("rejects a uri with a null byte, which could cut off an extension check behind it", async () => {
+  it("rejects a uri with a null byte, which could cut off an extension check behind it", async () => {
     const { server, readPaths } = createServerFor();
 
     const outcome = await requestOutcome({ server, uri: "/$root/app/frontend/.env\u0000.js" });
