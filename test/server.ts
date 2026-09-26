@@ -612,10 +612,10 @@ describe("createServer, query strings", () => {
 
 describe("createServer, configuration", () => {
   // each of these either never matches a request or redirects into a loop or to another host
-  const brokenVirtualRootFolders = ["", ".", "..", "/", "root/"];
+  const brokenVirtualRootFolders = ["", ".", "..", "/", "root/", "a/b", "a\\b", "a?b", "a#b"];
 
   brokenVirtualRootFolders.forEach((virtualRootFolder) => {
-    it.skip(`throws on the virtual root folder ${JSON.stringify(virtualRootFolder)}`, () => {
+    it(`throws on the virtual root folder ${JSON.stringify(virtualRootFolder)}`, () => {
       assert.throws(() => {
         createEs6DebugServer({
           scriptRootFolder,

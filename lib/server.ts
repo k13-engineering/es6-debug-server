@@ -114,6 +114,18 @@ const assertNiceAbsolutePath = ({ name, path }: { name: string, path: string }) 
   }
 };
 
+// a folder name as one segment of a uri: an empty or a dot segment is never matched by a request or
+// redirects into a loop, a / may redirect to another host like "//app/index.js", ? and # end the path
+const assertNiceUriSegment = ({ name, segment }: { name: string, segment: string }) => {
+  if (["", ".", ".."].includes(segment)) {
+    throw Error(`${name} must not be empty, . or ..`);
+  }
+
+  if (/[/\\?#]/u.test(segment)) {
+    throw Error(`${name} must not contain /, \\, ? or #`);
+  }
+};
+
 const createEs6DebugServer = ({
   virtualRootFolder = "$root",
   scriptRootFolder,
@@ -132,6 +144,7 @@ const createEs6DebugServer = ({
   const requestLogger = createLogger({ name: "server.request" });
 
   assertNiceAbsolutePath({ name: "scriptRootFolder", path: scriptRootFolder });
+  assertNiceUriSegment({ name: "virtualRootFolder", segment: virtualRootFolder });
 
   const rootPrefix = `/${virtualRootFolder}/`;
 
