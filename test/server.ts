@@ -349,6 +349,29 @@ describe("createServer, serving scripts", () => {
     );
   });
 
+  it("leaves a dynamic import that can not be resolved as it is", async () => {
+    const { server } = createServerFor({
+      files: {
+        "/app/frontend/index.js": `import { lib } from "lib";\ntry { await import("optional"); } catch { }`
+      },
+      resolveImportPath: async ({ specifier }) => {
+        if (specifier === "lib") {
+          return { error: undefined, filePath: "/app/node_modules/lib/index.js" };
+        }
+
+        return { error: Error(`no package "${specifier}"`) };
+      }
+    });
+
+    const outcome = await requestOutcome({ server, uri: "/$root/app/frontend/index.js" });
+
+    assertOutcomeKind({ outcome, kind: "content" });
+    assert.strictEqual(
+      (outcome as { content: string }).content,
+      `import { lib } from "../node_modules/lib/index.js";\ntry { await import("optional"); } catch { }`
+    );
+  });
+
   it("uses the virtual root folder it is given", async () => {
     const fileSystem = createFakeFileSystem({ files: { "/app/frontend/index.js": `export const a = 1;` } });
 

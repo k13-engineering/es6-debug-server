@@ -9,6 +9,8 @@ interface IImportStatement {
     from: number;
     to: number;
   };
+  // import("./a.js") rather than import ... from "./a.js"
+  dynamic?: boolean;
 };
 
 interface ICodeAnalyzeResult {
@@ -33,7 +35,7 @@ const defaultCodeAnalyzer: TCodeAnalyzeFunc = ({ code }) => {
     let imports: IImportStatement[] = [];
 
     // eslint-disable-next-line complexity
-    const appendSourceAsImport = (source: TImportLikeSource) => {
+    const appendSourceAsImport = ({ source, dynamic }: { source: TImportLikeSource, dynamic: boolean }) => {
       if (source?.type !== "Literal" || typeof source.value !== "string" || source.range === undefined || source.range === null) {
         return;
       }
@@ -45,19 +47,26 @@ const defaultCodeAnalyzer: TCodeAnalyzeFunc = ({ code }) => {
           range: {
             from: source.range[0],
             to: source.range[1]
-          }
+          },
+          dynamic
         }
       ];
     };
 
     simpleTraverse(scriptAsAst, {
+      // eslint-disable-next-line complexity
       enter: (node) => {
         if (
           node.type === "ImportDeclaration"
           || node.type === "ExportAllDeclaration"
           || node.type === "ExportNamedDeclaration"
         ) {
-          appendSourceAsImport(node.source);
+          appendSourceAsImport({ source: node.source, dynamic: false });
+        }
+
+        // only a string literal is known before the script runs, import(name) is left as it is
+        if (node.type === "ImportExpression") {
+          appendSourceAsImport({ source: node.source, dynamic: true });
         }
       }
     });

@@ -145,7 +145,7 @@ describe("defaultCodeAnalyzer, the forms of imports", () => {
     ]);
   });
 
-  it.skip("includes dynamic imports with a string literal specifier", () => {
+  it("includes dynamic imports with a string literal specifier", () => {
     const code = [
       `const lazy = await import("./lazy.js");`,
       `button.onclick = () => import("lib").then((lib) => lib.run());`,

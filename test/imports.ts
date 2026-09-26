@@ -59,15 +59,22 @@ describe("imports of served scripts, as a browser loads them", () => {
       `import { lib } from "lib";`,
       `export * from "./sub/d.js";`,
       `export { e } from "../e.js";`,
+      `export const lazy = () => import("lib/lazy");`,
     ].join("\n"),
     "/app/frontend/ui/a.js": `export const a = "a";`,
     "/app/shared/b.js": `export const b = "b";`,
     "/app/node_modules/lib/index.js": `export const lib = "lib";`,
     "/app/frontend/ui/sub/d.js": `export const d = "d";`,
     "/app/frontend/e.js": `export const e = "e";`,
+    "/app/node_modules/lib/lazy.js": `export const lazy = "lazy";`,
   };
 
-  const resolveImportPath = resolveWithPackages({ packages: { lib: "/app/node_modules/lib/index.js" } });
+  const resolveImportPath = resolveWithPackages({
+    packages: {
+      "lib": "/app/node_modules/lib/index.js",
+      "lib/lazy": "/app/node_modules/lib/lazy.js"
+    }
+  });
 
   ["", "/production", "/a/b"].forEach((prefix) => {
     it(`loads every import from the file it resolves to, below the prefix ${JSON.stringify(prefix)}`, async () => {
@@ -81,6 +88,7 @@ describe("imports of served scripts, as a browser loads them", () => {
         "/app/node_modules/lib/index.js",
         "/app/frontend/ui/sub/d.js",
         "/app/frontend/e.js",
+        "/app/node_modules/lib/lazy.js",
       ]);
 
       loaded.forEach(({ readPath, outcome }) => {

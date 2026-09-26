@@ -18,6 +18,22 @@ const encodeUriPath = ({ path }: { path: string }) => {
   });
 };
 
+// the path of an import relative to the importer, as a url
+const targetPathOf = ({ importer, absoluteOrRelativePath }: { importer: string, absoluteOrRelativePath: string }) => {
+  if (!absoluteOrRelativePath.startsWith("/")) {
+    return absoluteOrRelativePath;
+  }
+
+  // posix, not pathe: a file name may contain a \, which pathe takes for a separator
+  const relativePath = posix.relative(posix.dirname(importer), absoluteOrRelativePath);
+
+  if (relativePath.startsWith("./") || relativePath.startsWith("../")) {
+    return encodeUriPath({ path: relativePath });
+  }
+
+  return encodeUriPath({ path: `./${relativePath}` });
+};
+
 const createImportRewriter = ({
   analyzeCode,
   importResolver,
@@ -41,9 +57,17 @@ const createImportRewriter = ({
 
     const importsToRewrite = analyzeResult.result.imports;
 
+    const staticImports = importsToRewrite.filter((imp) => {
+      return imp.dynamic !== true;
+    });
+
+    const dynamicImports = importsToRewrite.filter((imp) => {
+      return imp.dynamic === true;
+    });
+
     const { error: resolveError, resolved } = await importResolver.resolveAllImports({
       importer,
-      specifiers: importsToRewrite.map((imp) => {
+      specifiers: staticImports.map((imp) => {
         return imp.value;
       }),
     });
@@ -55,26 +79,27 @@ const createImportRewriter = ({
       };
     }
 
-    const replacements = importsToRewrite.map((imported, index) => {
+    // a dynamic import may be of a module that is missing on purpose, e.g. inside a try block, so one that
+    // can not be resolved is left as it is, to fail where the script runs instead of failing the whole script
+    const resolvedDynamic = await Promise.all(dynamicImports.map(async (imp) => {
+      const result = await importResolver.resolveAllImports({ importer, specifiers: [imp.value] });
+      return result.error === undefined ? result.resolved[0] : undefined;
+    }));
 
-      const absoluteOrRelativePath = resolved[index];
+    const resolvedImports = [
+      ...staticImports.map((imported, index) => {
+        return { imported, absoluteOrRelativePath: resolved[index] };
+      }),
+      ...dynamicImports.flatMap((imported, index) => {
+        const absoluteOrRelativePath = resolvedDynamic[index];
+        return absoluteOrRelativePath === undefined ? [] : [{ imported, absoluteOrRelativePath }];
+      })
+    ];
 
-      let targetPath = absoluteOrRelativePath;
-
-      if (absoluteOrRelativePath.startsWith("/")) {
-        // posix, not pathe: a file name may contain a \, which pathe takes for a separator
-        targetPath = posix.relative(posix.dirname(importer), absoluteOrRelativePath);
-
-        if (!targetPath.startsWith("./") && !targetPath.startsWith("../")) {
-          targetPath = `./${targetPath}`;
-        }
-
-        targetPath = encodeUriPath({ path: targetPath });
-      }
-
+    const replacements = resolvedImports.map(({ imported, absoluteOrRelativePath }) => {
       return {
         // a string literal, whatever quotes or line breaks the path contains
-        replacement: JSON.stringify(targetPath),
+        replacement: JSON.stringify(targetPathOf({ importer, absoluteOrRelativePath })),
         range: imported.range
       };
     });
