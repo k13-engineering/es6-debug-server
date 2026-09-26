@@ -576,7 +576,7 @@ describe("createServer, malformed uris", () => {
 });
 
 describe("createServer, query strings", () => {
-  it.skip("redirects a uri whose query contains a url", async () => {
+  it("redirects a uri whose query contains a url", async () => {
     const { server } = createServerFor({});
 
     const outcome = await requestOutcome({ server, uri: "/ui/index.js?next=https://example.com/" });
@@ -588,7 +588,7 @@ describe("createServer, query strings", () => {
     });
   });
 
-  it.skip("redirects a uri whose query contains a relative path", async () => {
+  it("redirects a uri whose query contains a relative path", async () => {
     const { server } = createServerFor({});
 
     const outcome = await requestOutcome({ server, uri: "/ui/index.js?from=a/../b" });
@@ -600,7 +600,7 @@ describe("createServer, query strings", () => {
     });
   });
 
-  it.skip("reads the script without the query of the uri", async () => {
+  it("reads the script without the query of the uri", async () => {
     const { server, readPaths } = createServerFor({ files: { "/app/frontend/index.js": `export const a = 1;` } });
 
     const outcome = await requestOutcome({ server, uri: "/$root/app/frontend/index.js?v=1" });

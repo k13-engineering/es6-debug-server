@@ -45,13 +45,45 @@ const defaultImportResolver: TResolveImportPathFunc = ({ importer, specifier }) 
   });
 };
 
+// a query or a fragment may contain slashes and dots of their own, only the path of a uri is a path
+const splitUri = ({ uri }: { uri: string }) => {
+  const pathEnd = uri.search(/[?#]/u);
+
+  if (pathEnd < 0) {
+    return { path: uri, queryAndFragment: "" };
+  }
+
+  return { path: uri.substring(0, pathEnd), queryAndFragment: uri.substring(pathEnd) };
+};
+
+// eslint-disable-next-line complexity
+const assertNiceUri = ({ uri }: { uri: string }) => {
+  const { path } = splitUri({ uri });
+
+  if (path.includes("//")) {
+    throw Error("uri must not contain //");
+  }
+
+  if (!path.startsWith("/")) {
+    throw Error("uri must start with /");
+  }
+
+  if (path.split("/").includes("..")) {
+    throw Error("uri must not contain ..");
+  }
+
+  // a file path ends at a null byte for some file systems, which cuts off e.g. the extension of a path
+  if (uri.includes("\0")) {
+    throw Error("uri must not contain null bytes");
+  }
+};
+
 // Expresses the absolute uri `to` relative to the requested uri `from`, e.g. from "/ui/index.js" to
 // "/$root/my/script/root/ui/index.js" gives "../$root/my/script/root/ui/index.js". A client resolves
 // such a relative redirect against the URL it actually requested, so the redirect stays below any
 // path prefix the server itself cannot see, like a reverse proxy serving it under "/production/".
 const relativeUriOf = ({ from, to }: { from: string, to: string }) => {
-  // only the path counts, a query or fragment may contain slashes of its own
-  const [pathOfFrom] = from.split(/[?#]/u);
+  const { path: pathOfFrom } = splitUri({ uri: from });
   const depth = pathOfFrom.split("/").length - 2;
   const up = depth === 0 ? "./" : "../".repeat(depth);
   return `${up}${to.substring(1)}`;
@@ -188,6 +220,7 @@ const createEs6DebugServer = ({
     handleFileNotFound,
     handleInternalError,
   }: {
+    // the path of the request, it may be followed by a query or a fragment, which a redirect passes on
     uri: string,
 
     handleContent: (args: { contentType: string, content: string }) => void;
@@ -197,7 +230,7 @@ const createEs6DebugServer = ({
     handleRedirect: (args: { uri: string, relativeUri: string }) => void;
     handleFileNotFound: () => void;
     handleInternalError: (args: { error: Error }) => void;
-    // eslint-disable-next-line max-statements, complexity
+    // eslint-disable-next-line max-statements
   }) => {
 
     const requestId = requestCounter;
@@ -207,29 +240,13 @@ const createEs6DebugServer = ({
 
     let canceled = false;
 
-    if (uri.includes("//")) {
-      throw Error("uri must not contain //");
-    }
+    assertNiceUri({ uri });
 
-    if (!uri.startsWith("/")) {
-      throw Error("uri must start with /");
-    }
+    const { path } = splitUri({ uri });
 
-    // a file path ends at a null byte for some file systems, which cuts off e.g. the extension of a path
-    if (uri.includes("\0")) {
-      throw Error("uri must not contain null bytes");
-    }
+    if (path.startsWith(rootPrefix)) {
 
-    const uriParts = uri.split("/");
-    uriParts.forEach((part) => {
-      if (part === "..") {
-        throw Error("uri must not contain ..");
-      }
-    });
-
-    if (uri.startsWith(rootPrefix)) {
-
-      const relativePathInRoot = uri.substring(rootPrefix.length);
+      const relativePathInRoot = path.substring(rootPrefix.length);
 
       // relativePath does not have a leading slash
       // relativePath does not have double slashes
