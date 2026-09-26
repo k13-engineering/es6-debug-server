@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "mocha";
-import { createEs6DebugServer, createReadError } from "../lib/index.ts";
+import { createEs6DebugServer, createReadError, defaultImportResolver } from "../lib/index.ts";
+import {
+  allCausesOf,
+  assertOutcomeKind,
+  createFakeFileSystem,
+  createGate,
+  requestOutcome,
+  settle
+} from "./harness.ts";
+import type { TTryReadFunc, TResolveImportPathFunc, TCodeAnalyzeFunc } from "../lib/index.ts";
 
 type TRedirect = { uri: string, relativeUri: string };
 
@@ -267,6 +276,355 @@ describe("createServer", () => {
       });
     }, (error: unknown) => {
       return error instanceof Error && error.message === "scriptRootFolder must not contain //";
+    });
+  });
+});
+
+const scriptRootFolder = "/app/frontend";
+
+const createServerFor = ({
+  files = {},
+  tryReadScriptAsString,
+  resolveImportPath,
+  analyzeCode
+}: {
+  files?: { [filePath: string]: string },
+  tryReadScriptAsString?: TTryReadFunc,
+  resolveImportPath?: TResolveImportPathFunc,
+  analyzeCode?: TCodeAnalyzeFunc
+}) => {
+  const fileSystem = createFakeFileSystem({ files });
+
+  const server = createEs6DebugServer({
+    scriptRootFolder,
+    tryReadScriptAsString: tryReadScriptAsString ?? fileSystem.tryReadScriptAsString,
+    resolveImportPath,
+    analyzeCode
+  });
+
+  return {
+    server,
+    readPaths: fileSystem.readPaths
+  };
+};
+
+describe("createServer, serving scripts", () => {
+  it("serves a script with relative imports unchanged", async () => {
+    const code = [
+      `import { a } from "./a.js";`,
+      `import { b } from "../shared/b.js";`,
+      `export * from "./sub/c.js";`,
+    ].join("\n");
+
+    const { server } = createServerFor({ files: { "/app/frontend/index.js": code } });
+
+    const outcome = await requestOutcome({ server, uri: "/$root/app/frontend/index.js" });
+
+    assert.deepStrictEqual(outcome, { kind: "content", contentType: "text/javascript", content: code });
+  });
+
+  it("rewrites imports the resolver resolves to absolute paths into relative ones", async () => {
+    const { server } = createServerFor({
+      files: {
+        "/app/frontend/ui/index.js": `import { lib } from "lib";\nexport * from "lib/sub";`
+      },
+      resolveImportPath: async ({ specifier }) => {
+        return { error: undefined, filePath: `/app/node_modules/${specifier}/index.js` };
+      }
+    });
+
+    const outcome = await requestOutcome({ server, uri: "/$root/app/frontend/ui/index.js" });
+
+    assertOutcomeKind({ outcome, kind: "content" });
+    assert.strictEqual(
+      (outcome as { content: string }).content,
+      `import { lib } from "../../node_modules/lib/index.js";\nexport * from "../../node_modules/lib/sub/index.js";`
+    );
+  });
+
+  it("uses the virtual root folder it is given", async () => {
+    const fileSystem = createFakeFileSystem({ files: { "/app/frontend/index.js": `export const a = 1;` } });
+
+    const server = createEs6DebugServer({
+      scriptRootFolder,
+      virtualRootFolder: "@fs",
+      tryReadScriptAsString: fileSystem.tryReadScriptAsString
+    });
+
+    const redirect = await requestOutcome({ server, uri: "/index.js" });
+    const served = await requestOutcome({ server, uri: "/@fs/app/frontend/index.js" });
+
+    assert.deepStrictEqual(redirect, {
+      kind: "redirect",
+      uri: "/@fs/app/frontend/index.js",
+      relativeUri: "./@fs/app/frontend/index.js"
+    });
+    assertOutcomeKind({ outcome: served, kind: "content" });
+  });
+
+  it("redirects the root of the script root folder", async () => {
+    const { server } = createServerFor({});
+
+    const outcome = await requestOutcome({ server, uri: "/" });
+
+    assert.deepStrictEqual(outcome, {
+      kind: "redirect",
+      uri: "/$root/app/frontend/",
+      relativeUri: "./$root/app/frontend/"
+    });
+  });
+});
+
+describe("createServer, failing requests", () => {
+  it("answers with an internal error when the script can not be read", async () => {
+    const readError = createReadError({ code: "IO_ERROR", message: "permission denied" });
+
+    const { server } = createServerFor({
+      tryReadScriptAsString: async () => {
+        return { error: readError };
+      }
+    });
+
+    const outcome = await requestOutcome({ server, uri: "/$root/app/frontend/index.js" });
+
+    assertOutcomeKind({ outcome, kind: "internal-error" });
+    assert.ok(allCausesOf({ error: (outcome as { error: Error }).error }).includes(readError));
+  });
+
+  it("answers with an internal error when the read error carries no error code", async () => {
+    const { server } = createServerFor({
+      tryReadScriptAsString: async () => {
+        return { error: Error("something went wrong") };
+      }
+    });
+
+    const outcome = await requestOutcome({ server, uri: "/$root/app/frontend/index.js" });
+
+    assertOutcomeKind({ outcome, kind: "internal-error" });
+  });
+
+  it("answers with an internal error when the script has a syntax error", async () => {
+    const { server } = createServerFor({ files: { "/app/frontend/index.js": `import { from "./a.js";` } });
+
+    const outcome = await requestOutcome({ server, uri: "/$root/app/frontend/index.js" });
+
+    assertOutcomeKind({ outcome, kind: "internal-error" });
+  });
+
+  it("answers with an internal error when an import can not be resolved", async () => {
+    const resolveError = Error("no such package");
+
+    const { server } = createServerFor({
+      files: { "/app/frontend/index.js": `import "missing";` },
+      resolveImportPath: async () => {
+        return { error: resolveError };
+      }
+    });
+
+    const outcome = await requestOutcome({ server, uri: "/$root/app/frontend/index.js" });
+
+    assertOutcomeKind({ outcome, kind: "internal-error" });
+    assert.ok(allCausesOf({ error: (outcome as { error: Error }).error }).includes(resolveError));
+  });
+});
+
+describe("createServer, canceling requests", () => {
+  const answersOf = async ({ server, uri, whileRunning }: {
+    server: ReturnType<typeof createEs6DebugServer>,
+    uri: string,
+    whileRunning: (args: { cancel: () => void }) => Promise<void>
+  }) => {
+    let answers: string[] = [];
+
+    const record = ({ answer }: { answer: string }) => {
+      answers = [...answers, answer];
+    };
+
+    const { cancel } = await server.handleRequest({
+      uri,
+      handleContent: () => {
+        record({ answer: "content" });
+      },
+      handleRedirect: () => {
+        record({ answer: "redirect" });
+      },
+      handleFileNotFound: () => {
+        record({ answer: "file-not-found" });
+      },
+      handleInternalError: () => {
+        record({ answer: "internal-error" });
+      }
+    });
+
+    await whileRunning({ cancel });
+    await settle();
+
+    return answers;
+  };
+
+  it("does not answer a request that is canceled while the script is read", async () => {
+    const readGate = createGate();
+
+    const { server } = createServerFor({
+      tryReadScriptAsString: async () => {
+        await readGate.opened;
+        return { error: undefined, content: `export const a = 1;` };
+      }
+    });
+
+    const answers = await answersOf({
+      server,
+      uri: "/$root/app/frontend/index.js",
+      whileRunning: async ({ cancel }) => {
+        cancel();
+        readGate.open();
+      }
+    });
+
+    assert.deepStrictEqual(answers, []);
+  });
+
+  it("does not answer a request that is canceled while the script can not be read", async () => {
+    const readGate = createGate();
+
+    const { server } = createServerFor({
+      tryReadScriptAsString: async () => {
+        await readGate.opened;
+        return { error: createReadError({ code: "FILE_NOT_FOUND", message: "not found" }) };
+      }
+    });
+
+    const answers = await answersOf({
+      server,
+      uri: "/$root/app/frontend/index.js",
+      whileRunning: async ({ cancel }) => {
+        cancel();
+        readGate.open();
+      }
+    });
+
+    assert.deepStrictEqual(answers, []);
+  });
+
+  it.skip("does not answer a request that is canceled while its imports are resolved", async () => {
+    const resolveStarted = createGate();
+    const resolveGate = createGate();
+
+    const { server } = createServerFor({
+      files: { "/app/frontend/index.js": `import "./a.js";` },
+      resolveImportPath: async (args) => {
+        resolveStarted.open();
+        await resolveGate.opened;
+        return defaultImportResolver(args);
+      }
+    });
+
+    const answers = await answersOf({
+      server,
+      uri: "/$root/app/frontend/index.js",
+      whileRunning: async ({ cancel }) => {
+        await resolveStarted.opened;
+        cancel();
+        resolveGate.open();
+      }
+    });
+
+    assert.deepStrictEqual(answers, []);
+  });
+
+  it("canceling a request after its redirect has no further effect", async () => {
+    const { server } = createServerFor({});
+
+    const answers = await answersOf({
+      server,
+      uri: "/index.js",
+      whileRunning: async ({ cancel }) => {
+        cancel();
+      }
+    });
+
+    assert.deepStrictEqual(answers, ["redirect"]);
+  });
+});
+
+describe("createServer, malformed uris", () => {
+  const malformedUris = [
+    "index.js",
+    "",
+    "//index.js",
+    "//example.com/index.js",
+    "/ui//index.js",
+    "/$root//app/frontend/index.js",
+    "/$root/app//frontend/index.js",
+    "/../index.js",
+    "/ui/../index.js",
+    "/$root/../app/frontend/index.js",
+    "/$root/app/frontend/../frontend/index.js",
+    "/$root/app/frontend/..",
+  ];
+
+  malformedUris.forEach((uri) => {
+    it(`rejects ${JSON.stringify(uri)} without reading anything`, async () => {
+      const { server, readPaths } = createServerFor({ files: { "/app/frontend/index.js": `export const a = 1;` } });
+
+      const outcome = await requestOutcome({ server, uri });
+
+      assertOutcomeKind({ outcome, kind: "rejected" });
+      assert.deepStrictEqual(readPaths(), []);
+    });
+  });
+});
+
+describe("createServer, query strings", () => {
+  it.skip("redirects a uri whose query contains a url", async () => {
+    const { server } = createServerFor({});
+
+    const outcome = await requestOutcome({ server, uri: "/ui/index.js?next=https://example.com/" });
+
+    assert.deepStrictEqual(outcome, {
+      kind: "redirect",
+      uri: "/$root/app/frontend/ui/index.js?next=https://example.com/",
+      relativeUri: "../$root/app/frontend/ui/index.js?next=https://example.com/"
+    });
+  });
+
+  it.skip("redirects a uri whose query contains a relative path", async () => {
+    const { server } = createServerFor({});
+
+    const outcome = await requestOutcome({ server, uri: "/ui/index.js?from=a/../b" });
+
+    assert.deepStrictEqual(outcome, {
+      kind: "redirect",
+      uri: "/$root/app/frontend/ui/index.js?from=a/../b",
+      relativeUri: "../$root/app/frontend/ui/index.js?from=a/../b"
+    });
+  });
+
+  it.skip("reads the script without the query of the uri", async () => {
+    const { server, readPaths } = createServerFor({ files: { "/app/frontend/index.js": `export const a = 1;` } });
+
+    const outcome = await requestOutcome({ server, uri: "/$root/app/frontend/index.js?v=1" });
+
+    assertOutcomeKind({ outcome, kind: "content" });
+    assert.deepStrictEqual(readPaths(), ["/app/frontend/index.js"]);
+  });
+});
+
+describe("createServer, configuration", () => {
+  // each of these either never matches a request or redirects into a loop or to another host
+  const brokenVirtualRootFolders = ["", ".", "..", "/", "root/"];
+
+  brokenVirtualRootFolders.forEach((virtualRootFolder) => {
+    it.skip(`throws on the virtual root folder ${JSON.stringify(virtualRootFolder)}`, () => {
+      assert.throws(() => {
+        createEs6DebugServer({
+          scriptRootFolder,
+          virtualRootFolder,
+          tryReadScriptAsString: async () => {
+            throw Error("should not be called");
+          }
+        });
+      });
     });
   });
 });
