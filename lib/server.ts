@@ -87,13 +87,6 @@ const createEs6DebugServer = ({
 
   assertNiceAbsolutePath({ name: "scriptRootFolder", path: scriptRootFolder });
 
-  const parts = scriptRootFolder.split("/");
-  parts.forEach((part) => {
-    if (part === "..") {
-      throw Error("scriptRootFolder must not contain ..");
-    }
-  });
-
   const rootPrefix = `/${virtualRootFolder}/`;
 
   let requestCounter = 0;
@@ -124,7 +117,7 @@ const createEs6DebugServer = ({
     handleRedirect: (args: { uri: string, relativeUri: string }) => void;
     handleFileNotFound: () => void;
     handleInternalError: (args: { error: Error }) => void;
-    // eslint-disable-next-line complexity, max-statements
+    // eslint-disable-next-line max-statements
   }) => {
 
     const requestId = requestCounter;
@@ -213,10 +206,6 @@ const createEs6DebugServer = ({
     }
 
     const relativePath = uri.substring(1);
-    if (relativePath.startsWith("/")) {
-      throw Error("uri must not start with //");
-    }
-
 
     const redirectUri = `/${virtualRootFolder}${scriptRootFolder}/${relativePath}`;
     requestLogger(`request for "${uri}" (req ${requestId}) will be redirected to "${redirectUri}"`);
