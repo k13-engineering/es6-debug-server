@@ -122,6 +122,13 @@ describe("createServer", () => {
     assert.strictEqual(redirect.relativeUri, "../$root/my/script/root/ui/index.js?v=1&from=a/b/c");
   });
 
+  // a server never receives a fragment, a # in the decoded path of a request is part of a folder name
+  it("counts a folder with a # in its name towards the relative redirect", async () => {
+    const redirect = await redirectOf({ uri: "/chapter#1/index.js" });
+
+    assert.strictEqual(redirect.relativeUri, "../$root/my/script/root/chapter#1/index.js");
+  });
+
   it("serves scripts when accessed inside the virtual root", async () => {
     const scriptRootFolder = "/my/script/root";
     const virtualRootFolder = "$root";

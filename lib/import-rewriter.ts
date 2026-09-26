@@ -1,4 +1,4 @@
-import pathe from "pathe";
+import { posix } from "node:path";
 import { createCodeReplacer } from "./code-replacer.ts";
 import type { TCodeAnalyzeFunc } from "./analyzer.ts";
 import type { TImportResolver } from "./import-resolver.ts";
@@ -9,6 +9,13 @@ type TRewriteResult = {
 } | {
   error: undefined;
   rewrittenCode: string;
+};
+
+// an import specifier is a url, so a file name with e.g. "#", "?" or "%" in it has to be percent-encoded
+const encodeUriPath = ({ path }: { path: string }) => {
+  return encodeURI(path).replace(/[?#]/gu, (character) => {
+    return encodeURIComponent(character);
+  });
 };
 
 const createImportRewriter = ({
@@ -55,15 +62,19 @@ const createImportRewriter = ({
       let targetPath = absoluteOrRelativePath;
 
       if (absoluteOrRelativePath.startsWith("/")) {
-        targetPath = pathe.relative(pathe.dirname(importer), absoluteOrRelativePath);
+        // posix, not pathe: a file name may contain a \, which pathe takes for a separator
+        targetPath = posix.relative(posix.dirname(importer), absoluteOrRelativePath);
 
         if (!targetPath.startsWith("./") && !targetPath.startsWith("../")) {
           targetPath = `./${targetPath}`;
         }
+
+        targetPath = encodeUriPath({ path: targetPath });
       }
 
       return {
-        replacement: `"${targetPath}"`,
+        // a string literal, whatever quotes or line breaks the path contains
+        replacement: JSON.stringify(targetPath),
         range: imported.range
       };
     });

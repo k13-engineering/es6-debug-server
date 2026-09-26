@@ -91,9 +91,17 @@ describe("imports of served scripts, as a browser loads them", () => {
   });
 });
 
+// a file name with a ? is not among them: the server gets the decoded path of a request, where a ? can
+// not be told apart from the start of a query
 describe("imports of files with unusual names, as a browser loads them", () => {
   const unusualFileNames = [
     { what: "a space", fileName: "with space.js" },
+    { what: "a hash", fileName: "chapter#1.js" },
+    { what: "a percent sign", fileName: "100%.js" },
+    { what: "a double quote", fileName: `say "hi".js` },
+    { what: "a backslash", fileName: "back\\slash.js" },
+    { what: "a line break", fileName: "line\nbreak.js" },
+    { what: "a non-ascii character", fileName: "grüße.js" },
   ];
 
   unusualFileNames.forEach(({ what, fileName }) => {

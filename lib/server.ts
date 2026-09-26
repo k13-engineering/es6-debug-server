@@ -45,15 +45,16 @@ const defaultImportResolver: TResolveImportPathFunc = ({ importer, specifier }) 
   });
 };
 
-// a query or a fragment may contain slashes and dots of their own, only the path of a uri is a path
+// a query may contain slashes and dots of its own, only the path of a uri is a path, a server never
+// receives a fragment, so a # is part of a file name
 const splitUri = ({ uri }: { uri: string }) => {
-  const pathEnd = uri.search(/[?#]/u);
+  const pathEnd = uri.indexOf("?");
 
   if (pathEnd < 0) {
-    return { path: uri, queryAndFragment: "" };
+    return { path: uri, query: "" };
   }
 
-  return { path: uri.substring(0, pathEnd), queryAndFragment: uri.substring(pathEnd) };
+  return { path: uri.substring(0, pathEnd), query: uri.substring(pathEnd) };
 };
 
 // eslint-disable-next-line complexity
@@ -233,7 +234,8 @@ const createEs6DebugServer = ({
     handleFileNotFound,
     handleInternalError,
   }: {
-    // the path of the request, it may be followed by a query or a fragment, which a redirect passes on
+    // the decoded path of the request, "/a b.js" rather than "/a%20b.js", it may be followed by a query,
+    // which a redirect passes on, a ? always starts the query, so a file name with a ? can not be served
     uri: string,
 
     handleContent: (args: { contentType: string, content: string }) => void;
